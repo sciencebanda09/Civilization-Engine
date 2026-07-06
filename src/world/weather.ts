@@ -48,24 +48,54 @@ export function applyWeatherToResources(resources: Record<string, number>, weath
 
   if (weather.season === 'winter') {
     res.food = Math.max(0, (res.food ?? 0) - (weather.temperature < -10 ? 30 : 15));
-    if (weather.temperature < -10) changes.push('Bitter cold reduced the food stores.');
-    else changes.push('Winter meant less foraging.');
-  }
-  if (weather.season === 'summer' && weather.rainfall < 15) {
-    res.food = Math.max(0, (res.food ?? 0) - 10);
+    if (weather.temperature < -10) changes.push('Bitter cold devastated the food stores.');
+    else changes.push('Winter scarcity thinned the larder.');
     res.wood = Math.max(0, (res.wood ?? 0) - 5);
-    changes.push('Drought withered the crops.');
-  }
-  if (weather.season === 'spring' && weather.rainfall > 70) {
-    res.food = Math.max(0, (res.food ?? 0) + 20);
-    res.wood = Math.max(0, (res.wood ?? 0) + 10);
-    changes.push('Spring rains brought abundance.');
-  }
-  if (weather.season === 'autumn') {
-    res.food = (res.food ?? 0) + 15;
-    res.wood = (res.wood ?? 0) + 10;
-    changes.push('Autumn harvest filled the stores.');
+  } else if (weather.season === 'spring') {
+    res.food = (res.food ?? 0) + 10;
+    if (weather.rainfall > 70) {
+      res.food += 15;
+      res.wood = (res.wood ?? 0) + 10;
+      changes.push('Heavy spring rains promise a good growing season.');
+    } else if (weather.rainfall < 20) {
+      res.food -= 5;
+      changes.push('Dry spring — planting is difficult.');
+    } else {
+      changes.push('Spring planting begins. The fields are sown.');
+    }
+  } else if (weather.season === 'summer') {
+    if (weather.rainfall < 15) {
+      res.food = Math.max(0, (res.food ?? 0) - 12);
+      res.wood = Math.max(0, (res.wood ?? 0) - 5);
+      changes.push('Summer drought! Crops wither in the fields.');
+    } else if (weather.temperature > 35) {
+      res.food = Math.max(0, (res.food ?? 0) - 8);
+      changes.push('Heat wave stresses the settlement.');
+    } else {
+      res.food += 10;
+      changes.push('Summer growth — crops are thriving.');
+    }
+  } else if (weather.season === 'autumn') {
+    res.food = (res.food ?? 0) + 25;
+    res.wood = (res.wood ?? 0) + 15;
+    res.stone = (res.stone ?? 0) + 5;
+    changes.push('Harvest season! The stores are filled.');
   }
 
   return { resources: res, changes };
+}
+
+export function getSeasonDrought(weather: WeatherState): boolean {
+  return (weather.season === 'summer' && weather.rainfall < 20) ||
+    (weather.season === 'spring' && weather.rainfall < 10);
+}
+
+export function getSeasonDescription(season: Season): string {
+  const desc: Record<Season, string> = {
+    spring: '🌸 Spring — the world awakens',
+    summer: '☀️ Summer — the sun beats down',
+    autumn: '🍂 Autumn — the harvest comes',
+    winter: '❄️ Winter — the cold sets in',
+  };
+  return desc[season] ?? '';
 }

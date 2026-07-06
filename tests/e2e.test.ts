@@ -5,6 +5,10 @@ import {
   type GameSession, type ClimateState,
   ReligionManager, CivilizationManager, HistoryBook, DynastySystem,
   personalitySummary, getStance, printNewspaper,
+  renderDynamicMap, clearFireTiles,
+  showNewsPopup, showFullScreenPopup, detectNewsCategory, buildNewsBody,
+  generateChatter,
+  EventCascadeEngine,
 } from '../src/index.js';
 
 let passed = 0;
@@ -174,6 +178,86 @@ async function main(): Promise<void> {
   console.log('\n● Agent Aging');
   for (const agent of session.agentManager.getAllAgents()) {
     assert(agent.personality.age > 20, `${agent.name} aged (start 20+1 per epoch)`);
+  }
+
+  // ── 12. Dynamic Renderer ──
+  console.log('\n● Dynamic Map Renderer');
+  const mapStr = renderDynamicMap(session.worldMap, {
+    season: 'spring', climate: session.climate,
+    drought: false, fire: false, defenseLevel: 10, deforestation: 20,
+  }, session.allEvents);
+  assert(mapStr.includes('+'), 'Dynamic map has border');
+  assert(mapStr.includes('SPRING'), 'Dynamic map shows season');
+  assert(mapStr.includes('°C'), 'Dynamic map shows temperature');
+  clearFireTiles();
+
+  const mapSummer = renderDynamicMap(session.worldMap, {
+    season: 'summer', climate: session.climate,
+    drought: true, fire: true, defenseLevel: 30, deforestation: 60,
+  }, session.allEvents);
+  assert(mapSummer.includes('DROUGHT'), 'Dynamic map shows drought warning');
+  assert(mapSummer.includes('WILDFIRES'), 'Dynamic map shows fire warning');
+
+  // ── 13. News Popup System ──
+  console.log('\n● News Popup System');
+  const cat1 = detectNewsCategory('A new discovery changes everything!');
+  assert(cat1 === 'discovery', 'Detects discovery category');
+
+  const cat2 = detectNewsCategory('War drums beat on the horizon');
+  assert(cat2 === 'war', 'Detects war category');
+
+  const cat3 = detectNewsCategory('Famine strikes the settlement');
+  assert(cat3 === 'disaster', 'Detects disaster category');
+
+  const cat4 = detectNewsCategory('A new era begins!');
+  assert(cat4 === 'era', 'Detects era category');
+
+  const body = buildNewsBody('A remarkable breakthrough: the tribe discovers how to make fire.');
+  assert(body.length > 0, 'News body is non-empty');
+  assert(body.some(b => b.length > 0), 'News body has content');
+
+  // ── 14. Chatter Generator ──
+  console.log('\n● Agent Chatter');
+  const chatterLines = generateChatter(allAgents, {
+    recentEvents: session.allEvents.slice(-5),
+    currentEra: 'Stone Age',
+    resources: { food: 100, wood: 50, stone: 30 },
+  });
+  assert(chatterLines.length > 0, 'Chatter generates lines');
+  assert(chatterLines[0]!.agentName.length > 0, 'Chatter has speaker name');
+  assert(chatterLines[0]!.text.length > 0, 'Chatter has text');
+  assert(chatterLines[0]!.emotion.length > 0, 'Chatter has emotion');
+
+  // ── 15. Event Cascade Engine ──
+  console.log('\n● Event Cascade Engine');
+  const cascade = new EventCascadeEngine();
+  const cascadeState = {
+    epoch: 5, season: 'summer',
+    events: ['drought is severe', 'no rain for weeks'],
+    activeCascades: [],
+    resources: { food: 20, wood: 50, stone: 30 },
+    agents: allAgents,
+    population: 50,
+    defenseLevel: 5,
+  };
+  const cascadeResults = cascade.tick(cascadeState);
+  assert(cascadeResults.length >= 0, 'Cascade returns events array');
+  const narratives = cascade.getActiveNarratives();
+  assert(Array.isArray(narratives), 'Cascade narratives is array');
+
+  // ── 15b. Cascade with empty events ──
+  const emptyCascade = new EventCascadeEngine();
+  const emptyResult = emptyCascade.tick({
+    ...cascadeState, events: [], resources: { food: 100, wood: 100, stone: 100 },
+  });
+  assert(emptyResult.length === 0, 'Empty cascade produces no events');
+
+  // ── 16. Personality with trauma ──
+  console.log('\n● Personality Trauma');
+  for (const agent of allAgents) {
+    const beforeOpt = agent.personality.optimism;
+    agent.personality.trauma.push('test_trauma');
+    assert(agent.personality.trauma.includes('test_trauma'), `${agent.name} trauma recorded`);
   }
 
   // ── Summary ──

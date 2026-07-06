@@ -45,6 +45,15 @@ export { narrateEvent, getRandomCitizenStory, getSeasonalNarrative, getAgentQuot
 export { getPortrait, renderAgentPortrait } from './narrative/portraits.js';
 export { generateWeather, applyWeatherToResources, getSeason } from './world/weather.js';
 export type { WeatherState, Season } from './world/weather.js';
+export { getSeasonDrought, getSeasonDescription } from './world/weather.js';
+export { renderDynamicMap, clearFireTiles } from './map/dynamic-renderer.js';
+export type { DynamicRenderOptions } from './map/dynamic-renderer.js';
+export { showNewsPopup, showFullScreenPopup, detectNewsCategory, buildNewsBody } from './ui/news-popup.js';
+export type { NewsCategory } from './ui/news-popup.js';
+export { generateChatter, displayChatter, displayChatterBox } from './ui/chatter-box.js';
+export type { ChatterLine } from './ui/chatter-box.js';
+export { EventCascadeEngine } from './simulation/event-cascade.js';
+export type { CascadeState, ActiveCascade } from './simulation/event-cascade.js';
 export { EnemyManager } from './world/enemy-tribes.js';
 export type { EnemyTribe } from './world/enemy-tribes.js';
 export { CivilizationManager } from './world/civilization.js';
