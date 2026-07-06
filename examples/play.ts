@@ -694,7 +694,8 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
       if (!allDisc.includes(d.title)) {
         allDisc.push(d.title);
         fanfare();
-        const quote = getAgentQuote(allAgents.map(a => ({ name: a.name, archetype: a.archetype })));
+        const quotableAgent = allAgents[Math.floor(Math.random() * allAgents.length)];
+        const quote = quotableAgent ? getAgentQuote(quotableAgent.name, quotableAgent.archetype) : '';
         if (quote) {
           console.log(`\n  ${GRN}${B}✨ ${d.title} DISCOVERED!${R}`);
           console.log(`  ${PARCH}📜 "${quote}"${R}\n`);
