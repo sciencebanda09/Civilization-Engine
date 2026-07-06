@@ -14,7 +14,7 @@
 ```
   +------------------------------------------+
   |         CIVILIZATION ENGINE v1.0         |
-  |    AI agents . Interactive . Terminal     |
+  |    AI agents . Interactive . Terminal    |
   +------------------------------------------+
 
   Year 8/20    Bronze Age    Summer
@@ -180,8 +180,8 @@ A procedurally generated 20×6 world with rivers, forests, mountains, and settle
 
 ```
   ~~TT~~T^TT~~TT##TT~~
-  ~~TTTTTT^TTTT~~TTT#TT~~~
-  ~~~TTTTTTTTTT~~~~TTTTT~~~~
+  ~TTTTTT^TTT~TTT#TT~~
+  ~~TTTTTTT^^~TTTTTT~~
 ```
 
 ### Weather & Seasons
