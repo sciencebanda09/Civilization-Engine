@@ -6,6 +6,8 @@ import {
   FactionManager, EnemyManager, checkWinLose, LegacySystem,
   generateWeather, applyWeatherToResources,
   getRandomCitizenStory, getAgentQuote,
+  createGameSession, tickSession, recordHistory, generateSessionNewspaper, getSessionStats,
+  personalitySummary, printNewspaper,
   logger,
 } from '../src/index.js';
 import type { WorldState } from '../src/types/index.js';
@@ -22,12 +24,13 @@ import {
 // ─── Globals ────────────────────────────────────────────
 
 const achieved = new Set<string>();
-const allDisc: string[] = [];
+let allDisc: string[] = [];
 let totalRaidsSurvived = 0;
 let defenseLevel = 0;
 let discoveryBoost = 0;
 let popGrowthMod = 1;
 let playerChoices: string[] = [];
+let gameSession: Awaited<ReturnType<typeof createGameSession>> | null = null;
 
 // ─── Utilities ──────────────────────────────────────────
 
@@ -139,23 +142,33 @@ async function pickScenario(): Promise<{ scenarioId: string; epochs: number }> {
 function showEpoch(
   e: number, total: number, era: string, season: string,
   pop: number, resources: Record<string, number>,
-  agents: { name: string; archetype: string }[],
+  agents: { name: string; archetype: string; id: string }[],
   factions: { name: string; influence: number; color: string }[],
   enemies: { name: string; hostility: number }[],
   events: string[],
   mapStr: string,
+  session?: typeof gameSession,
 ): void {
   clearScreen();
   const seasonEmoji: Record<string, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
   const se = seasonEmoji[season.toLowerCase()] || '';
   const pct = Math.round((e / total) * 100);
 
+  const climateInfo = session ? `  ${GY}🌡${session.climate.temperature.toFixed(0)}°C CO₂:${session.climate.co2.toFixed(0)}${R}` : '';
+
   // ── Header bar ──
-  console.log(`  ${GOLD}${B}✦ YEAR ${e}/${total}${R}  ${YEL}${era}${R}  ${se}${CYN}${season.toUpperCase()}${R}  ${GY}Pop${R} ${pop}  ${GY}Disc${R} ${allDisc.length}  ${D}${'█'.repeat(Math.floor(pct / 4))}${'░'.repeat(25 - Math.floor(pct / 4))}${R}`);
+  console.log(`  ${GOLD}${B}✦ YEAR ${e}/${total}${R}  ${YEL}${era}${R}  ${se}${CYN}${season.toUpperCase()}${R}  ${GY}Pop${R} ${pop}  ${GY}Disc${R} ${allDisc.length} ${climateInfo} ${D}${'█'.repeat(Math.floor(pct / 4))}${'░'.repeat(25 - Math.floor(pct / 4))}${R}`);
+
+  // ── Climate alert ──
+  if (session && session.climate.deforestation > 40) console.log(`  ${YEL}⚠ Deforestation: ${session.climate.deforestation.toFixed(0)}%${R}`);
   console.log();
 
-  // ── Agents ──
-  const agLine = agents.map(a => `${GY}${a.name}${R}${D} ${a.archetype.charAt(0)}${R}`).join(' · ');
+  // ── Agents with personality ──
+  const agLine = agents.map(a => {
+    const p = session?.agentManager.getAgent(a.id)?.personality;
+    const trustIcon = p && p.trust > 60 ? GRN : p && p.trust < 30 ? RED : GY;
+    return `${trustIcon}${a.name}${R}${D} ${a.archetype.charAt(0)}${R}`;
+  }).join(' · ');
   console.log(`  ${agLine}`);
   console.log();
 
@@ -184,6 +197,29 @@ function showEpoch(
     console.log(`  ${RED}⚠${R} ${enemies.map(e => `${e.name} ${GY}${e.hostility}%${R}`).join(' · ')}  ${GY}🛡${R} ${defenseLevel}`);
   }
   console.log();
+
+  // ── Civilizations ──
+  if (session) {
+    const civs = session.civManager.getAll();
+    if (civs.length > 0) {
+      const civLine = civs.map(c => {
+        const relColors: Record<string, string> = { war: RED, hostile: YEL, neutral: GY, friendly: GRN, allied: CYN, vassal: MAG };
+        const firstOther = civs.find(o => o.id !== c.id);
+        const rel = firstOther ? session.civManager.getDiplomacy(c.id, firstOther.id).relation : 'neutral';
+        const col = relColors[rel] || GY;
+        return `${col}◆${R}${c.name} ${D}pop:${c.population}${R}`;
+      }).join(' ');
+      console.log(`  ${GY}Civs:${R} ${civLine}`);
+    }
+
+    // ── Religions ──
+    const rels = session.religionManager.getReligions();
+    if (rels.length > 0) {
+      const relLine = rels.map(r => `${MAG}◈${R}${r.name} ${D}${r.followers} fol${R}`).join(' ');
+      console.log(`  ${relLine}`);
+    }
+    console.log();
+  }
 
   // ── Events (last 4, condensed) ──
   const shown = events.slice(-4);
@@ -545,47 +581,16 @@ function applyCrisisEffect(
 async function playGame(scenarioId: string, epochCount: number): Promise<void> {
   const config = loadConfig();
   const llm = createProvider();
-  const agentManager = new AgentManager();
-  const factionManager = new FactionManager();
-  const enemyManager = new EnemyManager();
-  const legacy = new LegacySystem();
   const scenario = getScenario(scenarioId) ?? SCENARIOS[0]!;
 
-  // Create agents
-  for (const a of scenario.agents) agentManager.createAgent(a as any);
+  // Create GameSession wrapping all systems
+  gameSession = createGameSession(scenarioId, epochCount, scenario.agents as any, scenario.worldState as any);
+  const { agentManager, factionManager, enemyManager, legacy, civManager, religionManager, historyBook, dynastySystem } = gameSession;
   const allAgents = agentManager.getAllAgents();
-
-  // Form initial factions
-  const fColors = ['\x1b[36m', '\x1b[35m', '\x1b[33m', '\x1b[32m'];
-  const fNames = ['Innovators', 'Scholars', 'Explorers', 'Builders'];
-  for (let i = 0; i < allAgents.length; i++) {
-    const agent = allAgents[i]!;
-    if (!factionManager.getAgentFaction(agent.id)) {
-      factionManager.createFaction(
-        `${fNames[i % fNames.length]!} Clan`,
-        fColors[i % fColors.length]!,
-        agent, 0,
-        agent.personalityTraits ?? ['curiosity'],
-      );
-    }
-  }
   const allFactions = factionManager.getAllFactions();
-  if (allFactions.length >= 2)
-    factionManager.setRivalry(allFactions[0]!.id, allFactions[allFactions.length - 1]!.id);
 
-  // Spawn enemy
-  enemyManager.spawn('Grey Wolves', 15 + Math.floor(Math.random() * 10));
-
-  // World state
-  const worldState: WorldState = {
-    ...scenario.worldState,
-    epoch: 0,
-    resources: { ...scenario.worldState.resources },
-    discoveries: scenario.worldState.discoveries?.slice() ?? [],
-    flags: { ...scenario.worldState.flags },
-  };
-
-  let worldMap = generateWorldMap(20, 6, Date.now() % 999999, 50);
+  const worldState: WorldState = { ...gameSession.worldState };
+  let worldMap = gameSession.worldMap;
   const orchestrator = new Orchestrator(config, llm, agentManager, worldState);
   const op = orchestrator as any;
   let currentWeather = generateWeather(0);
@@ -636,34 +641,34 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
     // ── Run Epoch (with spinner) ──
     await withSpinner(() => op.runEpoch());
 
-    // Faction tick
-    for (const fe of factionManager.tick(e)) allEvents.push(fe);
-
     const stats = orchestrator.getStats();
 
-    // Enemy tick
+    // ── GameSession tick (all integrated systems) ──
+    const sessionEvents = tickSession(gameSession!, orchestrator, e);
+    for (const se of sessionEvents) allEvents.push(se);
+
+    // ── Override enemy tick from gameSession (handled by tickSession) ──
     for (const re of enemyManager.tick(e, stats.population, defenseLevel)) {
-      allEvents.push(re);
-      if (/raided|attacked|raid/i.test(re)) {
-        totalRaidsSurvived++;
-        alarm();
-        const dmgMatch = re.match(/Lost (\d+)/);
-        const dmg = dmgMatch ? parseInt(dmgMatch[1]!, 10) : 3;
-        const survived = dmg < stats.population * 0.4;
-        const defender = allAgents.find(a => a.archetype === 'warrior' || a.archetype === 'leader');
-        const log = combatLog('Grey Wolves', dmg, survived, defender?.name);
-        for (const l of log) console.log(`  ${l}`);
-        await sleep(400);
-        // Apply combat effect
-        if (survived) {
-          // Population hit already accounted for by enemy tick
+      if (!allEvents.includes(re)) {
+        allEvents.push(re);
+        if (/raided|attacked|raid/i.test(re)) {
+          totalRaidsSurvived++;
+          alarm();
+          const dmgMatch = re.match(/Lost (\d+)/);
+          const dmg = dmgMatch ? parseInt(dmgMatch[1]!, 10) : 3;
+          const survived = dmg < stats.population * 0.4;
+          const defender = allAgents.find(a => a.archetype === 'warrior' || a.archetype === 'leader');
+          const log = combatLog('Grey Wolves', dmg, survived, defender?.name);
+          for (const l of log) console.log(`  ${l}`);
+          await sleep(400);
         }
       }
     }
 
     // Enemy taunts (random drama)
     if (e > 2 && Math.random() < 0.15) {
-      const enemy = enemyManager.getAll()[0];
+      const enemyList = enemyManager.getAll();
+      const enemy = enemyList[0];
       if (enemy && enemy.hostility > 30) {
         allEvents.push(`[story] ${enemyTaunt(enemy.name, enemy.hostility)}`);
       }
@@ -701,6 +706,18 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
     // Apply discovery boost (decays after use)
     if (discoveryBoost > 0 && newDiscs.length > 0) discoveryBoost = Math.max(0, discoveryBoost - 1);
 
+    // ── Record history ──
+    recordHistory(gameSession!, e, allEvents.slice(-5));
+
+    // ── Newspaper (every 5 epochs) ──
+    const paper = generateSessionNewspaper(gameSession!, e);
+    if (paper) {
+      fanfare();
+      console.log(`\n  ${PARCH}${B}📰 THE CIVILIZATION TIMES — Year ${e}${R}\n`);
+      console.log(printNewspaper(paper));
+      await sleep(1500);
+    }
+
     // Update map
     const discTitles = (worldState.discoveries ?? []).map((d: any) => d.title ?? d);
     updateMapFeatures(worldMap, stats.population, discTitles, e);
@@ -725,8 +742,8 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
     showEpoch(
       e, epochCount, worldState.era, currentWeather.season,
       stats.population, worldState.resources as any,
-      allAgents.map(a => ({ name: a.name, archetype: a.archetype })),
-      factionState, enemyState, allEvents.slice(-8), mapStr,
+      allAgents.map(a => ({ name: a.name, archetype: a.archetype, id: a.id })),
+      factionState, enemyState, allEvents.slice(-8), mapStr, gameSession ?? undefined,
     );
 
     checkAchievements({ ...stats, eraAdvancements, totalDiscoveries: allDisc.length });
@@ -744,7 +761,6 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
         const chosen = await councilPrompt(choices, worldState as any, stats.population);
         if (chosen !== 'custom') {
           applyCouncilEffect(chosen, worldState, enemyManager);
-          // Broadcast the narrative
           const found = choices.find(c => c.id === chosen);
           if (found) allEvents.push(`📜 Council: ${found.effect.narrative}`);
         }
@@ -752,8 +768,8 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
     }
 
     // Crisis (catastrophe in events)
-    const crisisEvt = allEvents.slice(-3).find(e => {
-      const id = identifyCrisisType(e);
+    const crisisEvt = allEvents.slice(-3).find(ev => {
+      const id = identifyCrisisType(ev);
       return id !== null && Math.random() < 0.6;
     });
     if (crisisEvt) {
@@ -772,8 +788,6 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
     if (techCandidates.length > 1 && allDisc.length > 1 && e % 5 === 1 && e < epochCount) {
       const chosenTech = await techPrompt(techCandidates);
       if (chosenTech !== 'skip') {
-        // Boost the chosen tech by adding it to discoveries early
-        // Simple approach: bias the next discovery toward this tech
       }
     }
 
@@ -801,10 +815,33 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
     if (allFactions.some(f => f.memberIds.includes(agent.id))) deeds.push('Led a faction');
     if (totalRaidsSurvived > 0) deeds.push(`Survived ${totalRaidsSurvived} raids`);
     legacy.recordLegend(agent.name, agent.archetype, deeds, worldState.era, epochCount);
+    dynastySystem.recordAchievement(agent, deeds.join(', '));
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   const finalStats = orchestrator.getStats();
+  const ss = getSessionStats(gameSession!, orchestrator);
+
+  // ── Show full history book at end ──
+  console.log(`\n  ${PARCH}${B}═══════════════════════════════════════${R}`);
+  console.log(`  ${GOLD}${B}  THE CIVILIZATION CHRONICLES${R}`);
+  console.log(`  ${PARCH}${B}═══════════════════════════════════════${R}\n`);
+  console.log(historyBook.printHistory());
+
+  // ── Dynasty summary ──
+  console.log(`\n  ${GOLD}${B}═══════════════════════════════════════${R}`);
+  console.log(`  ${GOLD}${B}  DYNASTIES${R}`);
+  console.log(`  ${PARCH}${B}═══════════════════════════════════════${R}\n`);
+  console.log(`  ${dynastySystem.getDynastySummary().replace(/\n/g, '\n  ')}`);
+
+  // ── Religion summary ──
+  const relSummary = religionManager.getSummary();
+  if (relSummary) {
+    console.log(`\n  ${MAG}${B}═══════════════════════════════════════${R}`);
+    console.log(`  ${MAG}${B}  RELIGIONS & CULTURE${R}`);
+    console.log(`  ${PARCH}${B}═══════════════════════════════════════${R}\n`);
+    console.log(`  ${relSummary.replace(/\n/g, '\n  ')}`);
+  }
 
   showFinalReport(
     finalStats, elapsed,
