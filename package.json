@@ -1,0 +1,25 @@
+{
+  "name": "civilization-engine",
+  "version": "0.1.0",
+  "description": "Multi-Agent Civilization Simulation Engine",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "play": "npx tsx examples/play.ts",
+    "analyze": "npx tsx examples/analyze.ts",
+    "dev": "npx tsx watch src/index.ts",
+    "lint": "npx tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
