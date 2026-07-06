@@ -289,6 +289,35 @@ LOG_LEVEL=info
 
 ## Architecture
 
+```mermaid
+graph TD
+    UI[Terminal UI] --> Game[Game Systems]
+    Game --> Sim[Simulation Core]
+    Sim --> Agents[AI Agents]
+    Sim --> Economy[Economy Engine]
+    Sim --> World[World Systems]
+    World --> Map[Terrain Map]
+    World --> Weather[Weather & Seasons]
+    World --> Enemies[Enemy Tribes]
+    Agents --> LLM[LLM Providers]
+    LLM --> Groq[Groq API]
+    LLM --> Fallback[Fallback Provider]
+    Agents --> Factions[Faction Politics]
+    Agents --> Memory[Agent Memory]
+    Game --> Tech[Tech Tree]
+    Game --> Decisions[Player Decisions]
+    Game --> Narrative[Narrative Engine]
+    Game --> Legacy[Legacy System]
+    Game --> Achievements[Achievements]
+    Sim --> Events[Event Bus]
+    Events --> Catastrophes[Disasters]
+    Events --> Discoveries[Discoveries]
+    subgraph "Data"
+        Chapters[Save/Load]
+        History[History Tracker]
+    end
+```
+
 ```
 Civilization-Engine/
 ├── src/
