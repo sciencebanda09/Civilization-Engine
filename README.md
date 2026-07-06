@@ -11,36 +11,27 @@
   <img src="https://img.shields.io/badge/AI-Groq%20%7C%20Fallback-orange?style=flat-square" alt="AI">
 </p>
 
-```ascii
-  +------------------------------------------------+
-  |   CIVILIZATION ENGINE  v1.0                    |
-  |   AI agents · Interactive · Terminal             |
-  +------------------------------------------------+
+```
+  +------------------------------------------+
+  |         CIVILIZATION ENGINE v1.0         |
+  |    AI agents . Interactive . Terminal     |
+  +------------------------------------------+
 
-  YEAR 8/20      Bronze Age     SUMMER
-  Population: 134    Discoveries: 3
+  Year 8/20    Bronze Age    Summer
+  Pop: 134     Discoveries: 3
 
-  Kael (inventor) · Doren (scholar) · Mira (explorer)
-  Thane (leader)  · Elara (crafter)
+  Kael . Doren . Mira . Thane . Elara
 
-  Resources
-    Food  ████████░░░  84
-    Wood  ████░░░░░░   42
-    Stone ██████░░░░   63
+  Food  ###########..  84
+  Wood  ####........   42
+  Stone ######......   63
 
-  Factions
-    Innovators  24  influence
-    Scholars    19  influence
-    Builders    14  influence
+  Innovators  24    Scholars  19
+  Builders    14    Threat    55%
 
-  Threat: Grey Wolves  55%  |  Defense: 20
-
-  Recent Events
-    ✦ Agriculture discovered — "The earth gives willingly."
-    ⚔ Raid — Grey Wolves attacked! Lost 8 villagers.
-    ○ Kael proposed: "Can we channel the river?"
-
-  Council of Elders convenes in 2 years...
+  + Agriculture discovered
+  ! Raid -- Grey Wolves attack! Lost 8
+  > Kael asks: "Can we channel the river?"
 ```
 
 ## Overview
@@ -96,36 +87,36 @@ Each choice has real consequences. Boost defense too early and your economy may 
 ### Example: Council Decision
 
 ```
-  +------------------------------------------------+
-  |  The Council of Elders convenes...              |
-  |                                                 |
-  |  "The river floods our southern fields.        |
-  |   Half the grain stores are ruined.             |
-  |   What should we do, elder?"                    |
-  |                                                 |
-  |  [1] Build levees — secure next harvest         |
-  |  [2] Send expeditions south — find new land     |
-  |  [3] Ration food — weather the storm            |
-  |  [4] Blame the Builders faction — consolidate   |
-  |       power                                      |
-  +------------------------------------------------+
+  +--------------------------------------------+
+  |  The Council of Elders convenes...         |
+  |                                            |
+  |  "The river floods our southern fields.    |
+  |   Half the grain stores are ruined.        |
+  |   What should we do, elder?"               |
+  |                                            |
+  |  [1] Build levees -- secure next harvest   |
+  |  [2] Send expeditions south -- find land   |
+  |  [3] Ration food -- weather the storm      |
+  |  [4] Blame the Builders -- consolidate     |
+  |       power                                |
+  +--------------------------------------------+
 ```
 
 ### Example: Crisis Response
 
 ```
-  +------------------------------------------------+
-  |  ⚠ DROUGHT has struck the valley!              |
-  |                                                 |
-  |  "The wells have run dry. Crops are withering. |
-  |   The elders are panicking."                    |
-  |                                                 |
-  |  [1] Dig deeper wells — safe, steady           |
-  |  [2] Sacrifice to the ancestors — risky,       |
-  |       high reward                                |
-  |  [3] Raid the Grey Wolves' oasis — dangerous,  |
-  |       fills granaries                            |
-  +------------------------------------------------+
+  +--------------------------------------------+
+  |  DROUGHT has struck the valley!            |
+  |                                            |
+  |  "The wells have run dry. Crops are        |
+  |   withering. The elders are panicking."    |
+  |                                            |
+  |  [1] Dig deeper wells -- safe, steady      |
+  |  [2] Sacrifice to the ancestors -- risky,  |
+  |       high reward                          |
+  |  [3] Raid the Grey Wolves' oasis --        |
+  |       dangerous, fills granaries           |
+  +--------------------------------------------+
 ```
 
 ---
@@ -136,12 +127,12 @@ Six starting worlds, each with a unique challenge:
 
 | Scenario | Difficulty | Agents | Starting Era | Description |
 |----------|-----------|--------|-------------|-------------|
-| `peaceful_valley` | ✅ Easy | 5 | Stone Age | A lush valley with abundant game, water, and wood. Perfect for learning the mechanics. But will prosperity breed complacency? |
-| `rich_valley` | ⚖️ Normal | 5 | Stone Age | Fertile and overflowing with resources. Population booms fast — but rapid growth brings disease, conflict, and entropy. |
-| `island_colony` | ⚖️ Normal | 3 | Stone Age | A small island far from any mainland. Wood is limited, but the sea provides fish. No external threats — and no escape. |
-| `desert_oasis` | 🔴 Hard | 3 | Stone Age | A tiny oasis in an endless desert. Water and wood are precious. Stone is abundant. Innovation is the only path. |
-| `volcanic_winter` | 🔴 Hard | 3 | Stone Age | A massive eruption has blotted out the sun. Crops freeze. Animals die. Every resource counts. Can your civilization survive the long night? |
-| `iron_fist` | 💀 Extreme | 5 | Iron Age | Oppression. An occupying force has seized your lands and enslaved your people. You start with iron weapons and a burning desire for freedom. |
+| `peaceful_valley` | Easy | 5 | Stone Age | A lush valley with abundant resources. Perfect for learning the mechanics. |
+| `rich_valley` | Normal | 5 | Stone Age | Fertile valley with booming population. Rapid growth brings new problems. |
+| `island_colony` | Normal | 3 | Stone Age | A small island far from any mainland. No escape. No help. |
+| `desert_oasis` | Hard | 3 | Stone Age | A tiny oasis in a vast desert. Water and wood are precious. |
+| `volcanic_winter` | Hard | 3 | Stone Age | The sun is blotted out. Crops freeze. Survival is everything. |
+| `iron_fist` | Extreme | 5 | Iron Age | Oppression. Slavery. You start with iron and a hunger for freedom. |
 
 ---
 
@@ -150,18 +141,18 @@ Six starting worlds, each with a unique challenge:
 27 technologies spanning 4 eras. Each discovery unlocks new capabilities and brings you closer to victory.
 
 ```
-  Stone Age                 Copper Age            Bronze Age          Iron Age
-  ──────────                ──────────            ──────────          ────────
-  Fire                     Smelting              Bronze Smithing     Iron Smelting
-  Stone Tools              Copper Tools          Advanced Weapons    Steel Making
-  Shelter                  Irrigation            Chariots            Engineering
-  Hunting                  Animal Domestication  Writing             Philosophy
-  Gathering                Pottery               Mathematics         Law
-  Clothing                 Weaving               Astronomy           Medicine
-  Farming                  Trade                                  |
-  Language                                                          +-- WIN CONDITION
-  Basic Construction                                                  Reach Iron Age
-                                                                      Population > 80
+  Stone Age         Copper Age        Bronze Age        Iron Age
+  ----------        ----------        ----------        --------
+  Fire              Smelting          Bronze Smithing   Iron Smelt
+  Stone Tools       Copper Tools      Adv. Weapons      Steel Making
+  Shelter           Irrigation        Chariots          Engineering
+  Hunting           Animal Domes.     Writing           Philosophy
+  Gathering         Pottery           Mathematics       Law
+  Clothing          Weaving           Astronomy         Medicine
+  Farming           Trade
+  Language                                      +------ WIN CONDITION
+  Basic Construction                            |    Reach Iron Age
+                                                 +--  Population > 80
 ```
 
 Technologies have prerequisites. You can't research Bronze Smithing without first discovering Smelting and Copper Tools. The tech tree is visible in-game and updates as discoveries are made.
@@ -188,9 +179,9 @@ Factions gain and lose influence based on events, discoveries, and your council 
 A procedurally generated 20×6 world with rivers, forests, mountains, and settlements. The map evolves as your civilization builds and expands.
 
 ```
-  ≈≈🌲🌲≈≈🌲⛰️🌲🌲≈≈🌲🌲🏠🏠🌲🌲≈≈
-  ≈≈🌲🌲🌲🌲🌲🌲⛰️🌲🌲🌲🌲≈≈🌲🌲🌲🏠🌲🌲≈≈≈
-  ≈≈≈🌲🌲🌲🌲🌲🌲🌲🌲🌲🌲≈≈≈≈🌲🌲🌲🌲🌲≈≈≈≈≈
+  ~~TT~~T^TT~~TT##TT~~
+  ~~TTTTTT^TTTT~~TTT#TT~~~
+  ~~~TTTTTTTTTT~~~~TTTTT~~~~
 ```
 
 ### Weather & Seasons
@@ -207,11 +198,11 @@ The world cycles through spring, summer, autumn, and winter every 4 epochs. Temp
 Hostile tribes lurk beyond your borders. They raid, scout, and trade based on their hostility level. Successful raids cost you villagers and resources. Strong defenses deter them — but provoke larger assaults.
 
 ```
-  ⚔ Raid — Grey Wolves attacked!
+  ! Raid -- Grey Wolves attacked!
     Defender: Mira (explorer) fought back
-    Damage: 12  |  Lost: 8 villagers
+    Damage: 12   Lost: 8 villagers
     The Grey Wolves retreat with stolen food.
-    
+
   Enemy taunts:
     "Your walls are twigs. We will feast tonight."
 ```
