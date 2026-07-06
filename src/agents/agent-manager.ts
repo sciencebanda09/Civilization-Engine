@@ -1,6 +1,8 @@
 import type { Agent, Archetype, AgentStatus } from '../types/index.js';
 import type { Memory, MemoryType } from '../types/index.js';
 import { createMemory, buildMemoryDigest, pruneMemories } from './memory.js';
+import { createPersonality, getOptimizationTarget, ageAgent, personalitySummary } from './personality.js';
+import { decayOpinions, opinionSummary } from './opinions.js';
 import { logger } from '../utils/logger.js';
 
 let agentCounter = 0;
@@ -12,7 +14,7 @@ export interface AgentCreateParams {
   expertise: string[];
   expertiseDescription: string;
   goals: string[];
-  relationshipSummary: string;
+  relationshipSummary?: string;
 }
 
 export class AgentManager {
@@ -22,10 +24,22 @@ export class AgentManager {
     const id = `agent_${++agentCounter}`;
     const agent: Agent = {
       id,
-      ...params,
+      name: params.name,
+      archetype: params.archetype,
+      personalityTraits: params.personalityTraits,
+      expertise: params.expertise,
+      expertiseDescription: params.expertiseDescription,
+      goals: params.goals,
+      relationshipSummary: params.relationshipSummary ?? '(new arrival)',
       status: 'idle',
       memoryDigest: '(no memories yet)',
       memories: [],
+      personality: createPersonality(params.archetype, params.personalityTraits),
+      opinions: new Map(),
+      visibleResources: null,
+      visibleDiscoveries: [],
+      visibleEnemies: [],
+      optimizationTarget: getOptimizationTarget(params.archetype),
     };
     this.agents.set(id, agent);
     logger.info(`Created agent: ${agent.name} (${id}, ${agent.archetype})`);
@@ -86,5 +100,34 @@ export class AgentManager {
 
   count(): number {
     return this.agents.size;
+  }
+
+  ageAllAgents(years: number): void {
+    for (const agent of this.agents.values()) {
+      ageAgent(agent, years);
+    }
+  }
+
+  decayAllOpinions(): void {
+    for (const agent of this.agents.values()) {
+      decayOpinions(agent);
+    }
+  }
+
+  getAgentSummary(id: string): string {
+    const agent = this.agents.get(id);
+    if (!agent) return '(unknown)';
+    const parts = [
+      `${agent.name} (${agent.archetype})`,
+      personalitySummary(agent),
+    ];
+    return parts.join(' | ');
+  }
+
+  getOpinionDigest(agentId: string): string {
+    const agent = this.agents.get(agentId);
+    if (!agent) return '';
+    const others = this.getAllAgents();
+    return opinionSummary(agent, others);
   }
 }

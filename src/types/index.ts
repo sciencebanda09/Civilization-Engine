@@ -4,6 +4,10 @@ export type {
   Archetype,
   AgentStatus,
   Agent,
+  AgentPersonality,
+  PoliticalLeaning,
+  AgentGoal,
+  AgentOpinion,
 } from './agent.js';
 
 export type {
