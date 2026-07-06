@@ -27,6 +27,7 @@ export interface CatastropheEvent {
   populationLoss: number;
   discoveryBlocked: string | null;
   duration: number;
+  triggerCause: string;
 }
 
 type DescriptionMap = {
@@ -129,52 +130,77 @@ export class CatastropheEngine {
     epoch: number,
     worldState: WorldState,
     activeDiscoveries: string[],
+    crimeRate?: number,
+    revoltRisk?: number,
+    popDensity?: number,
   ): CatastropheEvent | null {
-    if (epoch - this.lastCatastropheEpoch < this.config.cooldownEpochs) {
-      return null;
+    // --- EMERGENT TRIGGER: Crime/revolt cascade ---
+    const effectiveRevolt = revoltRisk ?? 0;
+    if (effectiveRevolt > 20 && this.rng() < effectiveRevolt / 100) {
+      return this.makeEvent('raid', epoch, 'Civil unrest escalates into full revolt! Neighbors turn on neighbors.', worldState, activeDiscoveries);
     }
 
-    if (this.rng() > this.config.baseProbability) {
-      return null;
+    // --- EMERGENT TRIGGER: Overpopulation -> Plague ---
+    const effectiveDensity = popDensity ?? 0;
+    if (effectiveDensity > 80 && this.rng() < 0.08) {
+      return this.makeEvent('plague', epoch, 'Crowded conditions breed disease. The settlement is ripe for contagion.', worldState, activeDiscoveries);
     }
+
+    // --- EMERGENT TRIGGER: Low food -> Famine ---
+    const food = worldState.resources['food'] ?? 50;
+    if (food < 20 && this.rng() < 0.15) {
+      return this.makeEvent('famine', epoch, 'The granaries are empty. Hunger spreads through every home.', worldState, activeDiscoveries);
+    }
+
+    // --- EMERGENT TRIGGER: Drought after low wood/shelter ---
+    const wood = worldState.resources['wood'] ?? 50;
+    if (wood < 15 && this.rng() < 0.05) {
+      return this.makeEvent('drought', epoch, 'Without wood for irrigation channels, the fields dry up.', worldState, activeDiscoveries);
+    }
+
+    // Fallback: random disaster with cooldown
+    if (epoch - this.lastCatastropheEpoch < this.config.cooldownEpochs) return null;
+    if (this.rng() > this.config.baseProbability) return null;
 
     const availableTypes = this.config.enabledTypes.filter(
       (t) => !this.activeEvents.some((e) => e.type === t),
     );
-    if (availableTypes.length === 0) {
-      return null;
-    }
+    if (availableTypes.length === 0) return null;
 
     const type = pickRandom(availableTypes, this.rng);
+    return this.makeEvent(type, epoch, pickDescription(type, this.rng), worldState, activeDiscoveries);
+  }
 
+  private makeEvent(
+    type: CatastropheType,
+    epoch: number,
+    description: string,
+    worldState: WorldState,
+    activeDiscoveries: string[],
+  ): CatastropheEvent {
     const [minSeverity, maxSeverity] = this.config.severityRange;
     let severity = minSeverity + this.rng() * (maxSeverity - minSeverity);
     severity = this.scaleSeverity(type, severity, worldState);
 
     const resourceDeltas = this.computeResourceDeltas(type, severity);
     const populationLoss = Math.round(BASE_POPULATION_LOSS[type] * severity);
-    const agentAffected = populationLoss > 0;
-
     const duration = this.rollDuration(type, severity);
-
     const blocked = this.maybeBlockDiscovery(activeDiscoveries);
-
-    const description = pickDescription(type, this.rng);
 
     const event: CatastropheEvent = {
       type,
       severity,
       description,
       resourceDeltas,
-      agentAffected,
+      agentAffected: populationLoss > 0,
       populationLoss,
       discoveryBlocked: blocked,
       duration,
+      triggerCause: 'emergent',
     };
 
     this.lastCatastropheEpoch = epoch;
     this.activeEvents.push(event);
-
     return event;
   }
 
@@ -186,80 +212,40 @@ export class CatastropheEngine {
     const remaining: CatastropheEvent[] = [];
     for (const event of this.activeEvents) {
       event.duration -= 1;
-      if (event.duration > 0) {
-        remaining.push(event);
-      }
+      if (event.duration > 0) remaining.push(event);
     }
     this.activeEvents = remaining;
   }
 
   getDescription(event: CatastropheEvent): string {
-    const desc = event.description;
-    const severityLabel =
-      event.severity < 0.33
-        ? 'mild'
-        : event.severity < 0.66
-          ? 'severe'
-          : 'catastrophic';
-    const popPart =
-      event.populationLoss > 0
-        ? ` ${event.populationLoss} souls lost.`
-        : '';
-    const durationPart =
-      event.duration > 1 ? ` (lasts ${event.duration} more epochs)` : '';
-    const blockedPart = event.discoveryBlocked
-      ? ` Progress on "${event.discoveryBlocked}" is set back.`
-      : '';
-    return `[${severityLabel}] ${desc}${popPart}${durationPart}${blockedPart}`;
+    const severityLabel = event.severity < 0.33 ? 'mild' : event.severity < 0.66 ? 'severe' : 'catastrophic';
+    const popPart = event.populationLoss > 0 ? ` ${event.populationLoss} souls lost.` : '';
+    const durationPart = event.duration > 1 ? ` (lasts ${event.duration} more epochs)` : '';
+    const blockedPart = event.discoveryBlocked ? ` Progress on "${event.discoveryBlocked}" is set back.` : '';
+    return `[${severityLabel}] ${event.description}${popPart}${durationPart}${blockedPart}`;
   }
 
-  private scaleSeverity(
-    type: CatastropheType,
-    baseSeverity: number,
-    worldState: WorldState,
-  ): number {
+  private scaleSeverity(type: CatastropheType, baseSeverity: number, worldState: WorldState): number {
     const food = worldState.resources['food'] ?? 50;
     const health = worldState.resources['health'] ?? 50;
     const shelter = worldState.resources['shelter'] ?? 50;
-
     let multiplier = 1;
 
     switch (type) {
-      case 'drought':
-      case 'wildfire':
-      case 'famine':
-        if (food < 30) multiplier += 0.4;
-        else if (food < 50) multiplier += 0.2;
-        break;
+      case 'drought': case 'wildfire': case 'famine':
+        if (food < 30) multiplier += 0.4; else if (food < 50) multiplier += 0.2; break;
       case 'plague':
-        if (health < 30) multiplier += 0.5;
-        else if (health < 50) multiplier += 0.25;
-        if (food < 30) multiplier += 0.2;
-        break;
-      case 'blizzard':
-        if (food < 30 || shelter < 30) multiplier += 0.4;
-        break;
-      case 'flood':
-        if (shelter < 30) multiplier += 0.3;
-        break;
-      case 'earthquake':
-        if (shelter < 30) multiplier += 0.3;
-        break;
-      case 'raid':
-        if (food > 60) multiplier += 0.3;
-        break;
-      case 'locust':
-        if (food > 50) multiplier += 0.5;
-        break;
+        if (health < 30) multiplier += 0.5; else if (health < 50) multiplier += 0.25;
+        if (food < 30) multiplier += 0.2; break;
+      case 'blizzard': if (food < 30 || shelter < 30) multiplier += 0.4; break;
+      case 'flood': case 'earthquake': if (shelter < 30) multiplier += 0.3; break;
+      case 'raid': if (food > 60) multiplier += 0.3; break;
+      case 'locust': if (food > 50) multiplier += 0.5; break;
     }
-
     return Math.min(1, baseSeverity * multiplier);
   }
 
-  private computeResourceDeltas(
-    type: CatastropheType,
-    severity: number,
-  ): Record<string, number> {
+  private computeResourceDeltas(type: CatastropheType, severity: number): Record<string, number> {
     const base = BASE_RESOURCE_DELTAS[type];
     const deltas: Record<string, number> = {};
     for (const [key, value] of Object.entries(base)) {
@@ -270,16 +256,12 @@ export class CatastropheEngine {
 
   private rollDuration(type: CatastropheType, severity: number): number {
     if (severity < 0.4) return 1;
-    if (type === 'drought' || type === 'plague' || type === 'famine') {
-      return severity < 0.7 ? 2 : 3;
-    }
+    if (type === 'drought' || type === 'plague' || type === 'famine') return severity < 0.7 ? 2 : 3;
     return 2;
   }
 
   private maybeBlockDiscovery(activeDiscoveries: string[]): string | null {
-    if (activeDiscoveries.length === 0 || this.rng() > 0.3) {
-      return null;
-    }
+    if (activeDiscoveries.length === 0 || this.rng() > 0.3) return null;
     return pickRandom(activeDiscoveries, this.rng);
   }
 }

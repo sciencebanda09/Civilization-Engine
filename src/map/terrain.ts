@@ -1,11 +1,27 @@
 export type TerrainTile = 'water' | 'forest' | 'plains' | 'hills' | 'mountain' | 'desert' | 'swamp';
-export type FeatureTile = 'hut' | 'campfire' | 'palisade' | 'farm' | 'mine' | 'tower' | 'none';
+export type FeatureTile = 'hut' | 'campfire' | 'palisade' | 'farm' | 'mine' | 'tower' | 'none' | 'capital' | 'market' | 'barracks' | 'temple' | 'road';
+
+export type ResourceDeposit = 'iron' | 'coal' | 'gold' | 'animals' | 'fish' | 'clay' | 'salt' | 'copper' | 'tin' | 'gems' | 'none';
 
 export interface MapCell {
   terrain: TerrainTile;
   feature: FeatureTile;
   river: boolean;
   population: number;
+  resource: ResourceDeposit;
+  resourceAmount: number;
+  district: string | null;
+  road: boolean;
+}
+
+export interface City {
+  x: number;
+  y: number;
+  name: string;
+  population: number;
+  districts: string[];
+  walls: number;
+  founded: number;
 }
 
 export interface WorldMap {
@@ -13,6 +29,7 @@ export interface WorldMap {
   height: number;
   grid: MapCell[][];
   seed: number;
+  cities: City[];
 }
 
 const TERRAIN_SYMBOLS: Record<TerrainTile, string> = {
@@ -26,12 +43,31 @@ const TERRAIN_SYMBOLS: Record<TerrainTile, string> = {
 };
 
 const FEATURE_SYMBOLS: Record<FeatureTile, string> = {
-  hut: '\x1b[31m▲\x1b[0m',
-  campfire: '\x1b[33m✦\x1b[0m',
-  palisade: '\x1b[37m█\x1b[0m',
-  farm: '\x1b[32m▓\x1b[0m',
-  mine: '\x1b[90m♦\x1b[0m',
-  tower: '\x1b[36m♖\x1b[0m',
+  hut: '\x1b[31mH\x1b[0m',
+  campfire: '\x1b[33m*\x1b[0m',
+  palisade: '\x1b[37mW\x1b[0m',
+  farm: '\x1b[32mF\x1b[0m',
+  mine: '\x1b[90mM\x1b[0m',
+  tower: '\x1b[36mT\x1b[0m',
+  none: ' ',
+  capital: '\x1b[31mC\x1b[0m',
+  market: '\x1b[33mK\x1b[0m',
+  barracks: '\x1b[31mB\x1b[0m',
+  temple: '\x1b[35mP\x1b[0m',
+  road: '\x1b[37m=\x1b[0m',
+};
+
+const RESOURCE_SYMBOLS: Record<ResourceDeposit, string> = {
+  iron: '\x1b[90mI\x1b[0m',
+  coal: '\x1b[30mC\x1b[0m',
+  gold: '\x1b[33mG\x1b[0m',
+  animals: '\x1b[32mA\x1b[0m',
+  fish: '\x1b[36mF\x1b[0m',
+  clay: '\x1b[33mC\x1b[0m',
+  salt: '\x1b[37mS\x1b[0m',
+  copper: '\x1b[33mC\x1b[0m',
+  tin: '\x1b[37mT\x1b[0m',
+  gems: '\x1b[35mG\x1b[0m',
   none: ' ',
 };
 
@@ -51,6 +87,16 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
+const TERRAIN_RESOURCES: Record<TerrainTile, ResourceDeposit[]> = {
+  plains: ['animals', 'clay', 'none', 'none', 'none'],
+  forest: ['animals', 'none', 'none', 'none'],
+  hills: ['iron', 'copper', 'tin', 'gold', 'gems', 'none', 'none'],
+  mountain: ['iron', 'coal', 'gold', 'gems', 'copper', 'tin', 'none'],
+  desert: ['salt', 'gold', 'none', 'none'],
+  water: ['fish', 'none'],
+  swamp: ['clay', 'none'],
+};
+
 export function generateWorldMap(width: number, height: number, seed: number, population: number): WorldMap {
   seededRandom(seed);
   const grid: MapCell[][] = [];
@@ -68,12 +114,25 @@ export function generateWorldMap(width: number, height: number, seed: number, po
       else if (n < 0.92) terrain = 'desert';
       else terrain = 'swamp';
 
-      row.push({ terrain, feature: 'none', river: false, population: 0 });
+      const pool = TERRAIN_RESOURCES[terrain] ?? ['none'];
+      const resource = pool[Math.floor(nextRandom() * pool.length)] ?? 'none';
+      const resourceAmount = resource !== 'none' ? Math.floor(20 + nextRandom() * 80) : 0;
+
+      row.push({
+        terrain,
+        feature: 'none',
+        river: false,
+        population: 0,
+        resource: resource as ResourceDeposit,
+        resourceAmount,
+        district: null,
+        road: false,
+      });
     }
     grid.push(row);
   }
 
-  // Rivers (simulated): carve a path from top to bottom
+  // Rivers: carve a path from top to bottom
   const riverX = Math.floor(nextRandom() * width);
   let rx = riverX;
   for (let y = 0; y < height; y++) {
@@ -84,7 +143,7 @@ export function generateWorldMap(width: number, height: number, seed: number, po
     rx += nextRandom() < 0.4 ? 1 : nextRandom() < 0.4 ? -1 : 0;
   }
 
-  // Place settlement in center
+  // Place initial settlement
   const cx = Math.floor(width / 2);
   const cy = Math.floor(height / 2);
   const settlementRadius = 2;
@@ -96,87 +155,199 @@ export function generateWorldMap(width: number, height: number, seed: number, po
       grid[ny]![nx]!.terrain = 'plains';
     }
   }
-  grid[cy]![cx]!.feature = 'hut';
-  grid[cy]![cx]!.population = population;
 
-  return { width, height, grid, seed };
+  const capital: City = {
+    x: cx, y: cy, name: 'Capital',
+    population, districts: ['center'],
+    walls: 0, founded: 0,
+  };
+
+  grid[cy]![cx]!.feature = 'capital';
+  grid[cy]![cx]!.population = population;
+  grid[cy]![cx]!.district = 'center';
+
+  return { width, height, grid, seed, cities: [capital] };
+}
+
+export function expandCity(map: WorldMap, cityIndex: number, epoch: number): void {
+  const city = map.cities[cityIndex];
+  if (!city) return;
+
+  const pop = city.population;
+  const newDistricts: string[] = [];
+
+  if (pop > 50 && !city.districts.includes('farmlands')) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = clamp(city.x + dx, 0, map.width - 1);
+        const ny = clamp(city.y + dy, 0, map.height - 1);
+        const cell = map.grid[ny]![nx]!;
+        if (cell.terrain === 'plains' && cell.feature === 'none') {
+          cell.feature = 'farm';
+          cell.district = 'farmlands';
+        }
+      }
+    }
+    newDistricts.push('farmlands');
+  }
+
+  if (pop > 100 && !city.districts.includes('market')) {
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2;
+      const dist = 2;
+      const nx = clamp(city.x + Math.round(Math.cos(angle) * dist), 0, map.width - 1);
+      const ny = clamp(city.y + Math.round(Math.sin(angle) * dist), 0, map.height - 1);
+      const cell = map.grid[ny]![nx]!;
+      if (cell.feature === 'none' && cell.terrain !== 'water') {
+        cell.feature = 'market';
+        cell.district = 'market';
+      }
+    }
+    newDistricts.push('market');
+  }
+
+  if (pop > 200 && !city.districts.includes('barracks')) {
+    for (let i = 0; i < 2; i++) {
+      const nx = clamp(city.x + (i === 0 ? -2 : 2), 0, map.width - 1);
+      const ny = clamp(city.y + 1, 0, map.height - 1);
+      const cell = map.grid[ny]![nx]!;
+      if (cell.feature === 'none' && cell.terrain !== 'water') {
+        cell.feature = 'barracks';
+        cell.district = 'barracks';
+      }
+    }
+    newDistricts.push('barracks');
+  }
+
+  if (pop > 150 && !city.districts.includes('temple')) {
+    const nx = clamp(city.x - 1, 0, map.width - 1);
+    const ny = clamp(city.y - 1, 0, map.height - 1);
+    const cell = map.grid[ny]![nx]!;
+    if (cell.feature === 'none' && cell.terrain !== 'water') {
+      cell.feature = 'temple';
+      cell.district = 'temple';
+    }
+    newDistricts.push('temple');
+  }
+
+  if (pop > 80 && city.walls === 0) {
+    const wallRadius = 3;
+    for (let dy = -wallRadius; dy <= wallRadius; dy++) {
+      for (let dx = -wallRadius; dx <= wallRadius; dx++) {
+        if (Math.abs(dx) === wallRadius || Math.abs(dy) === wallRadius) {
+          const nx = clamp(city.x + dx, 0, map.width - 1);
+          const ny = clamp(city.y + dy, 0, map.height - 1);
+          const cell = map.grid[ny]![nx]!;
+          if (cell.feature === 'none' && cell.terrain !== 'water') {
+            cell.feature = 'palisade';
+          }
+        }
+      }
+    }
+    city.walls = 1;
+    newDistricts.push('walls');
+  }
+
+  city.districts.push(...newDistricts);
+}
+
+export function getResourcesOnTile(map: WorldMap, x: number, y: number): { resource: ResourceDeposit; amount: number } | null {
+  if (y < 0 || y >= map.height || x < 0 || x >= map.width) return null;
+  const cell = map.grid[y]![x]!;
+  if (cell.resource === 'none') return null;
+  return { resource: cell.resource, amount: cell.resourceAmount };
+}
+
+export function gatherResource(map: WorldMap, x: number, y: number, amount: number): number {
+  const cell = map.grid[y]?.[x];
+  if (!cell || cell.resource === 'none') return 0;
+  const gathered = Math.min(amount, cell.resourceAmount);
+  cell.resourceAmount -= gathered;
+  if (cell.resourceAmount <= 0) {
+    cell.resource = 'none';
+    cell.resourceAmount = 0;
+  }
+  return gathered;
 }
 
 export function updateMapFeatures(map: WorldMap, population: number, discoveries: string[], epoch: number): void {
   const cx = Math.floor(map.width / 2);
   const cy = Math.floor(map.height / 2);
 
-  // Add farms if farming discovered
-  if (discoveries.some(d => /farm|agricultur|irrigation/i.test(d))) {
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const nx = clamp(cx + dx + 1, 0, map.width - 1);
-        const ny = clamp(cy + dy + 1, 0, map.height - 1);
-        if (map.grid[ny]![nx]!.terrain === 'plains' && map.grid[ny]![nx]!.feature === 'none') {
-          map.grid[ny]![nx]!.feature = 'farm';
-        }
-      }
-    }
+  // Expand the capital city
+  const capital = map.cities[0];
+  if (capital) {
+    capital.population = population;
+    expandCity(map, 0, epoch);
   }
 
-  // Add palisade if defense discovered
-  if (discoveries.some(d => /palisade|defense|fortif|wall/i.test(d))) {
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        if (Math.abs(dx) === 2 || Math.abs(dy) === 2) {
-          const nx = clamp(cx + dx, 0, map.width - 1);
-          const ny = clamp(cy + dy, 0, map.height - 1);
-          if (map.grid[ny]![nx]!.feature === 'none') {
-            map.grid[ny]![nx]!.feature = 'palisade';
+  // Build roads between districts
+  if (discoveries.some(d => /road|trade|wheel|transport/i.test(d))) {
+    for (const city of map.cities) {
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -3; dy <= 3; dy++) {
+          const nx = clamp(city.x + dx, 0, map.width - 1);
+          const ny = clamp(city.y + dy, 0, map.height - 1);
+          const cell = map.grid[ny]![nx]!;
+          if (cell.feature !== 'none' && cell.feature !== 'road' && Math.random() < 0.2) {
+            const rx = clamp(nx + (dx > 0 ? 1 : -1), 0, map.width - 1);
+            const ry = clamp(ny + (dy > 0 ? 1 : -1), 0, map.height - 1);
+            if (map.grid[ry]![rx]!.terrain !== 'water') {
+              map.grid[ry]![rx]!.road = true;
+            }
           }
         }
       }
     }
   }
 
-  // More huts = more population
-  const huts = Math.min(Math.floor(population / 20), 8);
-  for (let i = 0; i < huts; i++) {
-    const angle = (i / huts) * Math.PI * 2;
-    const dist = 1 + Math.floor(i / 2);
-    const hx = clamp(cx + Math.round(Math.cos(angle) * dist), 0, map.width - 1);
-    const hy = clamp(cy + Math.round(Math.sin(angle) * dist), 0, map.height - 1);
-    if (map.grid[hy]![hx]!.feature === 'none' && map.grid[hy]![hx]!.terrain !== 'water') {
-      map.grid[hy]![hx]!.feature = 'hut';
-      map.grid[hy]![hx]!.population = Math.floor(population / (huts + 1));
+  // Farms spread with farming tech
+  if (discoveries.some(d => /farm|agricultur|irrigation/i.test(d))) {
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const cell = map.grid[y]![x]!;
+        if (cell.terrain === 'plains' && cell.feature === 'none' && Math.random() < 0.05) {
+          cell.feature = 'farm';
+        }
+      }
     }
   }
-
-  // Central hut always shows current pop
-  map.grid[cy]![cx]!.population = Math.floor(population * 0.3);
 }
 
 export function renderMap(map: WorldMap): string {
   const lines: string[] = [];
-  const header = `  ${'─'.repeat(map.width * 2 + 2)}`;
+  const header = `  +${'─'.repeat(map.width * 2 + 1)}+`;
   lines.push(header);
   for (const row of map.grid) {
-    let line = '  │';
+    let line = '  |';
     for (const cell of row) {
-      const bg = TERRAIN_SYMBOLS[cell.terrain];
       if (cell.river) {
-        line += '\x1b[44m \x1b[0m';
-      } else if (cell.feature !== 'none') {
+        line += '\x1b[44m~\x1b[0m';
+      } else if (cell.feature !== 'none' && cell.feature !== 'road') {
         line += FEATURE_SYMBOLS[cell.feature];
+      } else if (cell.road) {
+        line += FEATURE_SYMBOLS['road'];
+      } else if (cell.resource !== 'none' && cell.resourceAmount > 0) {
+        line += RESOURCE_SYMBOLS[cell.resource];
       } else {
-        line += bg;
+        line += TERRAIN_SYMBOLS[cell.terrain];
       }
+      line += ' ';
     }
-    line += '│';
+    line += '|';
     lines.push(line);
   }
   lines.push(header);
 
-  // Legend
-  const terrainLegend = 'Water🌊 Forest🌲 Plains🌾 Hills⛰️ Mountain🗻 Desert🏜️ Swamp🌿';
-  const featureLegend = 'Hut▲ Farm▓ Palisade█ Tower♖';
+  // City info
+  for (const city of map.cities) {
+    lines.push(`  ${city.name}: Pop ${city.population} | Districts: ${city.districts.join(', ')}${city.walls > 0 ? ' | Walled' : ''}`);
+  }
 
-  return lines.join('\n') + '\n' +
-    `  \x1b[90m${terrainLegend}\x1b[0m\n` +
-    `  \x1b[90m${featureLegend}\x1b[0m`;
+  // Resource legend
+  const resourceLegend = 'Resources: I=iron C=coal G=gold A=animals F=fish L=clay';
+  lines.push(`  \x1b[90m${resourceLegend}\x1b[0m`);
+
+  return lines.join('\n');
 }
