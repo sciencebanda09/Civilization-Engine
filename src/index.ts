@@ -67,4 +67,6 @@ export { saveChapter, listChapters, loadChapter, getChapterNarration } from './g
 export type { ChapterSave } from './game/chapters.js';
 export { DynastySystem } from './game/dynasty.js';
 export type { Dynasty, DynastyMember } from './game/dynasty.js';
+export { createGameSession, tickSession, recordHistory, generateSessionNewspaper, getSessionStats } from './game/game-session.js';
+export type { GameSession, GameSessionStats, ClimateState } from './game/game-session.js';
 export type * from './types/index.js';

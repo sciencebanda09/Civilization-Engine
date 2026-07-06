@@ -86,11 +86,12 @@ export class Orchestrator {
     const epoch = this.currentEpoch;
     this.epochEvents = [];
     this.worldState.epoch = epoch;
+    if (!this.worldState.enabledDomains) this.worldState.enabledDomains = [];
     const era = this.epochScheduler.getEraName(epoch);
 
     logger.info(`=== Epoch ${epoch} (${era}) ===`);
 
-    const discoveredDomains = this.worldState.discoveries.map(d => d.title.toLowerCase());
+    const discoveredDomains = this.worldState.discoveries?.filter(d => d?.title).map(d => d.title.toLowerCase()) ?? [];
     const econResult = this.economy.processEpoch(this.worldState, this.populationEstimate, discoveredDomains);
 
     for (const [resource, delta] of Object.entries(econResult.deltas)) {
@@ -112,7 +113,8 @@ export class Orchestrator {
     const eraTransition = this.eraManager.checkTransition(epoch, discoveredDomains);
     if (eraTransition.triggered && eraTransition.to) {
       this.worldState.era = eraTransition.to.name;
-      this.worldState.enabledDomains = [...new Set([...this.worldState.enabledDomains, ...eraTransition.to.enabledDomains])];
+      const existing = this.worldState.enabledDomains ?? [];
+      this.worldState.enabledDomains = [...new Set([...existing, ...eraTransition.to.enabledDomains])];
       this.epochEvents.push({ type: 'narrative', agentIds: [], description: `🏛️ ERA PROGRESSION: ${eraTransition.to.name} unlocked! ${eraTransition.to.description}` });
       this.eventBus.emit({ type: 'era_transition', from: eraTransition.from?.name ?? 'unknown', to: eraTransition.to.name, epoch });
     }

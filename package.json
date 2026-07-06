@@ -11,7 +11,8 @@
     "play": "npx tsx examples/play.ts",
     "analyze": "npx tsx examples/analyze.ts",
     "dev": "npx tsx watch src/index.ts",
-    "lint": "npx tsc --noEmit"
+    "lint": "npx tsc --noEmit",
+"test": "npx tsx tests/e2e.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
