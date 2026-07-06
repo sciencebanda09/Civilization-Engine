@@ -10,9 +10,15 @@ export interface ChapterSave {
   timestamp: number;
   worldState: WorldState;
   agentStates: any[];
+  agentPersonalities: any[];
+  agentOpinions: any[];
   discoveryTitles: string[];
   population: number;
   factionState: any;
+  civilizations: any[];
+  religions: any[];
+  historyBook: any[];
+  dynastyState: any;
   legends: any[];
   events: string[];
 }

@@ -65,4 +65,6 @@ export { TECH_TREE, getTechNode, getDiscoveredTechs, getUnlockableTechs, renderT
 export type { TechNode } from './game/tech-tree.js';
 export { saveChapter, listChapters, loadChapter, getChapterNarration } from './game/chapters.js';
 export type { ChapterSave } from './game/chapters.js';
+export { DynastySystem } from './game/dynasty.js';
+export type { Dynasty, DynastyMember } from './game/dynasty.js';
 export type * from './types/index.js';
