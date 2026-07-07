@@ -34,6 +34,7 @@ export class TimelineService {
       }>(prompt, {
         temperature: 0.5,
         maxTokens: 300,
+        tier: 'small',
       });
 
       const entry: EpochTimelineEntry = {

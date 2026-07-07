@@ -20,15 +20,19 @@ function getEnvArray(key: string): string[] {
 export function createProvider(): LLMProvider {
   const groqKeys = getEnvArray('GROQ_API_KEY');
   if (groqKeys.length > 0) {
-    logger.info(`Creating Groq provider with ${groqKeys.length} key(s), model=${process.env['GROQ_MODEL'] ?? 'llama-3.3-70b-versatile'}`);
-    const groq = new GroqProvider(groqKeys);
+    const smallModel = process.env['GROQ_SMALL_MODEL']?.trim() || 'llama-3.1-8b-instant';
+    const bigModel = process.env['GROQ_BIG_MODEL']?.trim() || process.env['GROQ_MODEL']?.trim() || 'llama-3.3-70b-versatile';
+    logger.info(`Creating Groq provider with ${groqKeys.length} key(s): small=${smallModel}, big=${bigModel}`);
+    const groq = new GroqProvider(groqKeys, smallModel, bigModel);
     return new FallbackLLMProvider(groq);
   }
 
   const ollamaModel = process.env['OLLAMA_MODEL']?.trim();
   if (ollamaModel) {
-    logger.info(`Creating Ollama provider (model=${ollamaModel})`);
-    const ollama = new OllamaProvider(ollamaModel);
+    const smallModel = process.env['OLLAMA_SMALL_MODEL']?.trim() || ollamaModel;
+    const bigModel = process.env['OLLAMA_BIG_MODEL']?.trim() || ollamaModel;
+    logger.info(`Creating Ollama provider: small=${smallModel}, big=${bigModel}`);
+    const ollama = new OllamaProvider(smallModel, bigModel);
     return new FallbackLLMProvider(ollama);
   }
 

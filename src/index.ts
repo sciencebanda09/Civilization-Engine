@@ -29,7 +29,7 @@ export { RelationshipManager, DEFAULT_RELATIONSHIP_CONFIG } from './simulation/r
 export { EraManager, DEFAULT_ERAS } from './simulation/eras.js';
 export { HistoryTracker } from './simulation/history-tracker.js';
 export { SimulationSerializer, restoreSave } from './simulation/save-load.js';
-export { SCENARIOS, getScenario, pickRandomScenario, listScenarios } from './scenarios/index.js';
+export { SCENARIOS, getScenario, pickRandomScenario, listScenarios, generateLargeScenario } from './scenarios/index.js';
 export type { Scenario } from './scenarios/index.js';
 export { createPersonality, getOptimizationTarget, applyTrauma, applyVictory, ageAgent, personalitySummary } from './agents/personality.js';
 export { createOpinion, modifyTrust, modifyRespect, modifyFear, addDebt, getNetOpinion, wouldSupport, wouldOppose, getStance, decayOpinions, opinionSummary } from './agents/opinions.js';

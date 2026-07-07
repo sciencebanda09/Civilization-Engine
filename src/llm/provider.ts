@@ -7,6 +7,7 @@ export interface LLMProvider {
 
 export interface LLMOptions {
   model?: string;
+  tier?: 'small' | 'big';
   maxTokens?: number;
   temperature?: number;
   systemInstruction?: string;

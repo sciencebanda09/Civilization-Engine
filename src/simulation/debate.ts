@@ -59,6 +59,7 @@ export class DebateSystem {
           }>(prompt, {
             temperature: 0.7,
             maxTokens: 300,
+            tier: 'big',
           });
 
           const turnRecord: DebateTurn = {

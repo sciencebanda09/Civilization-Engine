@@ -14,15 +14,21 @@ interface OllamaChatResponse {
 export class OllamaProvider extends BaseLLMProvider {
   private host: string;
   private model: string;
+  private smallModel: string;
+  private bigModel: string;
 
-  constructor(model?: string, host?: string) {
+  constructor(smallModel?: string, bigModel?: string, host?: string) {
     super();
     this.host = host ?? process.env['OLLAMA_HOST'] ?? 'http://localhost:11434';
-    this.model = model ?? process.env['OLLAMA_MODEL'] ?? 'llama3.2';
+    this.smallModel = smallModel ?? process.env['OLLAMA_SMALL_MODEL'] ?? process.env['OLLAMA_MODEL'] ?? 'llama3.2';
+    this.bigModel = bigModel ?? process.env['OLLAMA_BIG_MODEL'] ?? process.env['OLLAMA_MODEL'] ?? 'llama3.2';
+    this.model = this.bigModel;
   }
 
   async generate(prompt: string, options?: LLMOptions): Promise<string> {
-    const model = options?.model ?? this.model;
+    const model = options?.tier === 'small' ? this.smallModel
+      : options?.tier === 'big' ? this.bigModel
+      : options?.model ?? this.model;
     const messages: OllamaChatMessage[] = [];
 
     if (options?.systemInstruction) {

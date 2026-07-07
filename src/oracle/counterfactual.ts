@@ -19,7 +19,7 @@ export class CounterfactualEngine {
     });
 
     try {
-      const raw = await this.llm.generate(prompt, { temperature: 0.3, maxTokens: 300 });
+      const raw = await this.llm.generate(prompt, { temperature: 0.3, maxTokens: 300, tier: 'big' });
       const cleaned = raw.trim();
 
       if (cleaned.includes('injection_confirmed')) {
@@ -81,7 +81,7 @@ export class CounterfactualEngine {
           notableAgentReactions: Array<{ agentId: string; reaction: string }>;
         }>;
         endStateComparison: string;
-      }>(prompt, { temperature: 0.4, maxTokens: 800 });
+      }>(prompt, { temperature: 0.4, maxTokens: 800, tier: 'big' });
 
       return {
         divergedAtEpoch: result.divergedAtEpoch,
@@ -113,6 +113,7 @@ export class CounterfactualEngine {
       return await this.llm.generate(prompt, {
         temperature: 0.6,
         maxTokens: 400,
+        tier: 'big',
       });
     } catch (err) {
       logger.error(`Counterfactual narration failed: ${err}`);

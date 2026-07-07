@@ -64,6 +64,7 @@ export class TeamFormation {
       }>(prompt, {
         temperature: 0.3,
         maxTokens: 400,
+        tier: 'big',
       });
 
       logger.info(

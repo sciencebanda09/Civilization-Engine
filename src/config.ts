@@ -10,6 +10,7 @@ export interface Config {
   simulation: {
     maxEpochs: number;
     agentsPerEpochActive: number;
+    maxActiveTeamsPerEpoch: number;
     debateMaxTurns: number;
     teamMinSize: number;
     teamMaxSize: number;
@@ -41,6 +42,7 @@ export const defaultConfig: Config = {
   simulation: {
     maxEpochs: 100,
     agentsPerEpochActive: 5,
+    maxActiveTeamsPerEpoch: 3,
     debateMaxTurns: 5,
     teamMinSize: 2,
     teamMaxSize: 5,

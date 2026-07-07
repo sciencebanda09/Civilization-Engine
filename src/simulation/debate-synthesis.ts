@@ -34,6 +34,7 @@ export class DebateSynthesis {
       }>(prompt, {
         temperature: 0.3,
         maxTokens: 500,
+        tier: 'big',
       });
 
       const design: ExperimentDesign = {

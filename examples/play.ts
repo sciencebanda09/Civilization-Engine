@@ -12,6 +12,7 @@ import {
   showNewsPopup, showFullScreenPopup, detectNewsCategory, buildNewsBody,
   generateChatter, displayChatterBox,
   EventCascadeEngine,
+  generateLargeScenario,
   logger,
 } from '../src/index.js';
 import type { WorldState } from '../src/types/index.js';
@@ -119,10 +120,20 @@ function printTitle(scenarioCount: number): void {
   console.log();
 }
 
-async function pickScenario(): Promise<{ scenarioId: string; epochs: number }> {
+async function pickScenario(): Promise<{ scenarioId: string; epochs: number; agentCount?: number }> {
   const args = process.argv.slice(2);
-  const argScenario = args.find(a => !/^\d+$/.test(a));
+
+  const agentsIdx = args.indexOf('--agents');
+  const agentCount = agentsIdx >= 0 && agentsIdx + 1 < args.length
+    ? parseInt(args[agentsIdx + 1]!, 10)
+    : undefined;
+
+  const argScenario = args.find(a => !/^\d+$/.test(a) && a !== '--agents' && (agentsIdx < 0 || args.indexOf(a) !== agentsIdx + 1));
   const argEpochs = parseInt(args.find(a => /^\d+$/.test(a)) ?? '', 10);
+
+  if (agentCount && agentCount > 0) {
+    return { scenarioId: `large_${agentCount}`, epochs: argEpochs || 10, agentCount };
+  }
 
   if (argScenario && SCENARIOS.some(s => s.id === argScenario)) {
     return { scenarioId: argScenario, epochs: argEpochs || 10 };
@@ -164,13 +175,31 @@ function showEpochSeasonal(
   if (session && session.climate.deforestation > 40) console.log(`  ${YEL}⚠ Deforestation: ${session.climate.deforestation.toFixed(0)}%${R}`);
   console.log();
 
-  // Agents with personality
-  const agLine = agents.map(a => {
-    const p = session?.agentManager.getAgent(a.id)?.personality;
-    const trustIcon = p && p.trust > 60 ? GRN : p && p.trust < 30 ? RED : GY;
-    return `${trustIcon}${a.name}${R}${D} ${a.archetype.charAt(0)}${R}`;
-  }).join(' · ');
-  console.log(`  ${agLine}`);
+  // Agents with personality (summarize for large populations)
+  if (agents.length > 12) {
+    const idle = agents.filter(a => {
+      const p = session?.agentManager.getAgent(a.id)?.personality;
+      return p && p.trust > 50;
+    }).length;
+    const activeResearchers = agents.filter(a => {
+      const p = session?.agentManager.getAgent(a.id)?.personality;
+      return p && p.optimism > 60;
+    }).length;
+    console.log(`  ${GY}${agents.length} villagers, ${activeResearchers} active researchers, ${agents.length - activeResearchers} idle${R}`);
+    const topAgents = agents.slice(0, 4).map(a => {
+      const p = session?.agentManager.getAgent(a.id)?.personality;
+      const trustIcon = p && p.trust > 60 ? GRN : p && p.trust < 30 ? RED : GY;
+      return `${trustIcon}${a.name}${R}${D} ${a.archetype.charAt(0)}${R}`;
+    }).join(' · ');
+    console.log(`  ${D}Notables: ${topAgents}${R}`);
+  } else {
+    const agLine = agents.map(a => {
+      const p = session?.agentManager.getAgent(a.id)?.personality;
+      const trustIcon = p && p.trust > 60 ? GRN : p && p.trust < 30 ? RED : GY;
+      return `${trustIcon}${a.name}${R}${D} ${a.archetype.charAt(0)}${R}`;
+    }).join(' · ');
+    console.log(`  ${agLine}`);
+  }
   console.log();
 
   // Resources
@@ -192,8 +221,9 @@ function showEpochSeasonal(
   console.log();
 
   // Factions + Enemies
-  const fLine = factions.map(f => `${f.color}◆${R}${f.name} ${GY}${f.influence}${R}`).join(' ');
-  console.log(`  ${fLine}`);
+  const displayFactions = factions.length > 6 ? factions.slice(0, 4) : factions;
+  const fLine = displayFactions.map(f => `${f.color}◆${R}${f.name} ${GY}${f.influence}${R}`).join(' ');
+  console.log(`  ${fLine}${factions.length > 6 ? ` ${D}+${factions.length - 4} more${R}` : ''}`);
   if (enemies.length > 0) {
     console.log(`  ${RED}⚠${R} ${enemies.map(e => `${e.name} ${GY}${e.hostility}%${R}`).join(' · ')}  ${GY}🛡${R} ${defenseLevel}`);
   }
@@ -275,11 +305,12 @@ async function midEpochAction(
 ): Promise<string | null> {
   const width = Math.min(72, process.stdout.columns ?? 80);
   console.log(`\n  ${GY}${'═'.repeat(width - 4)}${R}`);
-  console.log(`  ${CYN}[T]${R}alk to agent  ${GRN}[D]${R}ecree  ${YEL}[H]${R}istory  ${GY}[Enter]${R} continue`);
+  const talkOption = agents.length <= 20 ? `  ${CYN}[T]${R}alk to agent  ` : '';
+  console.log(`${talkOption} ${GRN}[D]${R}ecree  ${YEL}[H]${R}istory  ${GY}[Enter]${R} continue`);
   console.log(`  ${GY}${'═'.repeat(width - 4)}${R}`);
 
   const key = (await ask(`  ${CYN}Action:${R} `)).trim().toLowerCase();
-  if (key === 't' || key === 'talk') {
+  if ((key === 't' || key === 'talk') && agents.length <= 20) {
     const names = agents.map((a, i) => `${i + 1}) ${a.name} (${a.archetype})`).join('  ');
     const pick = await ask(`  ${CYN}Who?${R} ${names}: `);
     const idx = parseInt(pick.trim(), 10);
@@ -598,10 +629,14 @@ function showFinalReport(
 
 // ─── Main Game Loop ─────────────────────────────────
 
-async function playGame(scenarioId: string, epochCount: number): Promise<void> {
+async function playGame(scenarioId: string, epochCount: number, agentCount?: number): Promise<void> {
   const config = loadConfig();
   const llm = createProvider();
-  const scenario = getScenario(scenarioId) ?? SCENARIOS[0]!;
+
+  const isLarge = agentCount != null && agentCount > 0;
+  const scenario = isLarge
+    ? generateLargeScenario(agentCount!)
+    : getScenario(scenarioId) ?? SCENARIOS[0]!;
 
   gameSession = createGameSession(scenarioId, epochCount, scenario.agents as any, scenario.worldState as any);
   cascadeEngine = new EventCascadeEngine();
@@ -627,10 +662,24 @@ async function playGame(scenarioId: string, epochCount: number): Promise<void> {
   clearScreen();
   console.log(`\n  ${GOLD}${B}✦ ${scenario.name}${R}`);
   console.log(`  ${GY}${scenario.description || ''}${R}`);
-  console.log(`  ${D}${scenario.agents.length} agents · ${epochCount} years · ${scenario.difficulty}${R}\n`);
-  for (const a of scenario.agents) {
-    console.log(`  ${D}◆${R} ${B}${a.name}${R} ${D}${a.archetype}${R}${a.description ? ` — ${a.description}` : ''}`);
-    await sleep(150);
+  const agentCountDisplay = scenario.agents.length;
+  console.log(`  ${D}${agentCountDisplay} agents · ${epochCount} years · ${scenario.difficulty}${R}\n`);
+  if (agentCountDisplay <= 10) {
+    for (const a of scenario.agents) {
+      console.log(`  ${D}◆${R} ${B}${a.name}${R} ${D}${a.archetype}${R}${a.expertiseDescription ? ` — ${a.expertiseDescription}` : ''}`);
+      await sleep(150);
+    }
+  } else {
+    const archCounts = new Map<string, number>();
+    for (const a of scenario.agents) {
+      archCounts.set(a.archetype, (archCounts.get(a.archetype) ?? 0) + 1);
+    }
+    const archSummary = [...archCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([arch, count]) => `${count}x ${arch}`)
+      .join(', ');
+    console.log(`  ${GY}{${agentCountDisplay} inhabitants: ${archSummary}}${R}`);
+    await sleep(500);
   }
   console.log(`\n  ${D}The chronicle begins...${R}`);
   await sleep(800);
@@ -909,9 +958,9 @@ async function main(): Promise<void> {
   hideCursor();
   initReadline();
 
-  const { scenarioId, epochs } = await pickScenario();
+  const { scenarioId, epochs, agentCount } = await pickScenario();
   startTime = Date.now();
-  await playGame(scenarioId, epochs);
+  await playGame(scenarioId, epochs, agentCount);
 
   const again = await ask(`\n  ${CYN}Play again? (y/n):${R} `);
   if (again.trim().toLowerCase() === 'y' || again.trim().toLowerCase() === 'yes') {
@@ -922,9 +971,9 @@ async function main(): Promise<void> {
     defenseLevel = 0;
     discoveryBoost = 0;
     popGrowthMod = 1;
-    const { scenarioId: s2, epochs: e2 } = await pickScenario();
+    const { scenarioId: s2, epochs: e2, agentCount: ac2 } = await pickScenario();
     startTime = Date.now();
-    await playGame(s2, e2);
+    await playGame(s2, e2, ac2);
   }
 
   closeReadline();

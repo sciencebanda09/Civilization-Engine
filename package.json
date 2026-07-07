@@ -10,6 +10,7 @@
     "start": "node dist/index.js",
     "play": "npx tsx examples/play.ts",
     "analyze": "npx tsx examples/analyze.ts",
+    "viewer": "npx tsx viewer/server.ts",
     "dev": "npx tsx watch src/index.ts",
     "lint": "npx tsc --noEmit",
 "test": "npx tsx tests/e2e.test.ts"

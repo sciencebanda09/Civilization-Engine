@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Civilization Engine Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+  a { color: #58a6ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 18px; font-weight: 600; color: #f0f6fc; }
+  .header .subtitle { color: #8b949e; font-size: 13px; }
+  .layout { display: flex; gap: 0; height: calc(100vh - 52px); }
+  .sidebar { width: 260px; min-width: 260px; background: #161b22; border-right: 1px solid #30363d; overflow-y: auto; padding: 12px; }
+  .sidebar h3 { font-size: 12px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .save-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
+  .save-item:hover { background: #1c2128; border-color: #30363d; }
+  .save-item.active { background: #1f2937; border-color: #58a6ff; }
+  .save-item .name { font-weight: 500; font-size: 14px; }
+  .save-item .meta { font-size: 11px; color: #8b949e; margin-top: 2px; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .timeline-container { padding: 16px 20px; border-bottom: 1px solid #30363d; overflow-x: auto; }
+  .timeline { display: flex; gap: 2px; min-height: 80px; align-items: flex-end; padding: 8px 0; }
+  .epoch-bar { display: flex; flex-direction: column; align-items: center; cursor: pointer; min-width: 40px; transition: transform 0.1s; }
+  .epoch-bar:hover { transform: scale(1.05); }
+  .epoch-bar .bar { width: 28px; border-radius: 4px 4px 0 0; transition: background 0.2s; }
+  .epoch-bar .label { font-size: 9px; color: #8b949e; margin-top: 4px; white-space: nowrap; }
+  .epoch-bar .era-label { font-size: 8px; color: #484f58; margin-top: 1px; }
+  .epoch-bar.active .bar { box-shadow: 0 0 0 2px #58a6ff; }
+  .detail-panel { flex: 1; padding: 16px 20px; overflow-y: auto; display: flex; gap: 20px; }
+  .detail-col { flex: 1; min-width: 0; }
+  .detail-col h3 { font-size: 13px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .event-item { padding: 4px 0; font-size: 13px; border-bottom: 1px solid #21262d; }
+  .event-item:last-child { border-bottom: none; }
+  .discovery-item { padding: 6px 8px; background: #1c2128; border-radius: 6px; margin-bottom: 6px; border-left: 3px solid #238636; }
+  .discovery-item .title { font-weight: 500; color: #7ee787; }
+  .discovery-item .desc { font-size: 12px; color: #8b949e; margin-top: 2px; }
+  .hypothesis-item { padding: 6px 8px; background: #1c2128; border-radius: 6px; margin-bottom: 6px; border-left: 3px solid #d29922; }
+  .hypothesis-item .title { font-weight: 500; color: #d29922; }
+  .resource-bar { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .resource-item { font-size: 12px; color: #8b949e; }
+  .resource-item .value { color: #c9d1d9; font-weight: 500; }
+  .query-section { padding: 12px 20px; border-top: 1px solid #30363d; background: #161b22; }
+  .query-row { display: flex; gap: 8px; align-items: center; }
+  .query-row input { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; font-size: 14px; outline: none; }
+  .query-row input:focus { border-color: #58a6ff; }
+  .query-row button { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; }
+  .btn-why { background: #238636; color: #fff; }
+  .btn-why:hover { background: #2ea043; }
+  .btn-whatif { background: #9e6a03; color: #fff; }
+  .btn-whatif:hover { background: #bb8009; }
+  .query-result { margin-top: 8px; padding: 8px 12px; background: #1c2128; border-radius: 6px; font-size: 13px; max-height: 120px; overflow-y: auto; display: none; }
+  .query-result.visible { display: block; }
+  .causal-graph { margin-top: 12px; }
+  .causal-graph svg { width: 100%; height: 200px; background: #0d1117; border-radius: 6px; border: 1px solid #30363d; }
+  .placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #484f58; font-size: 14px; }
+  .epoch-detail-header { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .epoch-detail-era { font-size: 13px; color: #8b949e; margin-bottom: 12px; }
+  .no-saves { text-align: center; color: #484f58; padding: 40px; font-size: 14px; }
+  .no-saves p { margin-bottom: 8px; }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; margin-right: 4px; }
+  .tag-success { background: #23863620; color: #7ee787; border: 1px solid #238636; }
+  .tag-failure { background: #da363320; color: #ff7b72; border: 1px solid #da3633; }
+  .tag-hyp { background: #d2992220; color: #d29922; border: 1px solid #d29922; }
+  .scroll-hint { font-size: 11px; color: #484f58; text-align: center; padding: 4px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏛️ Civilization Engine</h1>
+  <span class="subtitle">Post-game Timeline Viewer</span>
+  <span style="flex:1"></span>
+  <span id="status" class="subtitle">Loading saves...</span>
+</div>
+<div class="layout">
+  <div class="sidebar" id="sidebar">
+    <h3>Saved Games</h3>
+    <div id="save-list">
+      <div class="no-saves" id="no-saves">
+        <p>📂 No saved games found</p>
+        <p>Play a game and save it, then check the <code>saves/</code> directory.</p>
+      </div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="timeline-container">
+      <div id="timeline" class="timeline"></div>
+      <div class="scroll-hint">← Scroll to explore epochs →</div>
+    </div>
+    <div class="detail-panel" id="detail-panel">
+      <div class="placeholder" id="placeholder">
+        <div style="text-align:center">
+          <div style="font-size:40px;margin-bottom:12px">🏛️</div>
+          <p>Select a save from the sidebar to view its timeline</p>
+          <p style="font-size:12px;margin-top:8px">Click individual epochs or discoveries for details</p>
+        </div>
+      </div>
+      <div class="detail-col" id="detail-col-left" style="display:none">
+        <h3>Events</h3>
+        <div id="events-list"></div>
+      </div>
+      <div class="detail-col" id="detail-col-right" style="display:none">
+        <h3>Discoveries & Hypotheses</h3>
+        <div id="discoveries-list"></div>
+        <div style="margin-top:12px">
+          <h3>Causal Graph</h3>
+          <div id="causal-graph" class="causal-graph"></div>
+        </div>
+      </div>
+    </div>
+    <div class="query-section">
+      <div class="query-row">
+        <input type="text" id="query-input" placeholder='Ask "why did X happen?" or "what if X had changed?"' />
+        <button class="btn-why" id="btn-why" onclick="askWhy()">Ask Why</button>
+        <button class="btn-whatif" id="btn-whatif" onclick="askWhatIf()">What If</button>
+      </div>
+      <div id="query-result" class="query-result"></div>
+    </div>
+  </div>
+</div>
+<script>
+let saves = [];
+let currentSaveId = null;
+let currentTimeline = [];
+let currentEpochIndex = -1;
+
+async function loadSaves() {
+  try {
+    const res = await fetch('/api/saves');
+    const data = await res.json();
+    saves = data.saves || [];
+    renderSaveList();
+    if (saves.length > 0) {
+      document.getElementById('status').textContent = `${saves.length} save(s) found`;
+      selectSave(saves[0].id);
+    } else {
+      document.getElementById('status').textContent = 'No saves found';
+    }
+  } catch (e) {
+    document.getElementById('status').textContent = 'Error loading saves';
+    console.error(e);
+  }
+}
+
+function renderSaveList() {
+  const container = document.getElementById('save-list');
+  const noSaves = document.getElementById('no-saves');
+  if (saves.length === 0) {
+    noSaves.style.display = 'block';
+    container.querySelectorAll('.save-item').forEach(el => el.remove());
+    return;
+  }
+  noSaves.style.display = 'none';
+  container.querySelectorAll('.save-item').forEach(el => el.remove());
+  saves.forEach(s => {
+    const div = document.createElement('div');
+    div.className = `save-item${s.id === currentSaveId ? ' active' : ''}`;
+    div.dataset.id = s.id;
+    div.innerHTML = `<div class="name">${s.label}</div><div class="meta">Epoch ${s.epoch} · ${s.agentCount} agents · ${s.discoveryCount} disc.</div>`;
+    div.onclick = () => selectSave(s.id);
+    container.appendChild(div);
+  });
+}
+
+async function selectSave(id) {
+  currentSaveId = id;
+  renderSaveList();
+  try {
+    const res = await fetch(`/api/saves/${encodeURIComponent(id)}`);
+    const data = await res.json();
+    currentTimeline = data.timeline || [];
+    renderTimeline();
+    if (currentTimeline.length > 0) {
+      showEpochDetail(currentTimeline.length - 1);
+    }
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('detail-col-left').style.display = 'block';
+    document.getElementById('detail-col-right').style.display = 'block';
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderTimeline() {
+  const container = document.getElementById('timeline');
+  container.innerHTML = '';
+  if (currentTimeline.length === 0) return;
+
+  const maxPop = Math.max(...currentTimeline.map(t => t.population || 1), 1);
+  const eraColors = {
+    'Stone Age': '#58a6ff',
+    'Bronze Age': '#d29922',
+    'Iron Age': '#8b949e',
+    'Classical Era': '#7ee787',
+    'Medieval Era': '#bc8cff',
+    'Renaissance': '#f78166',
+  };
+
+  currentTimeline.forEach((entry, i) => {
+    const bar = document.createElement('div');
+    bar.className = `epoch-bar${i === currentEpochIndex ? ' active' : ''}`;
+    const height = Math.max(20, (entry.population / maxPop) * 60);
+    const eraColor = eraColors[entry.era] || '#58a6ff';
+    const discoveries = entry.discoveries.length;
+    bar.innerHTML = `
+      <div class="bar" style="height:${height}px;background:${eraColor};opacity:${0.3 + (discoveries / Math.max(...currentTimeline.map(t=>t.discoveries.length),1)) * 0.7}"></div>
+      <div class="label">E${entry.epoch}</div>
+      <div class="era-label">${entry.era.split(' ')[0] || entry.era}</div>
+    `;
+    bar.title = `Epoch ${entry.epoch}: ${entry.era}\nPopulation: ~${entry.population}\nDiscoveries: ${discoveries}`;
+    bar.onclick = () => showEpochDetail(i);
+    container.appendChild(bar);
+  });
+}
+
+async function showEpochDetail(index) {
+  currentEpochIndex = index;
+  renderTimeline();
+  const entry = currentTimeline[index];
+  if (!entry) return;
+
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('detail-col-left').style.display = 'block';
+  document.getElementById('detail-col-right').style.display = 'block';
+
+  // Events
+  const eventsList = document.getElementById('events-list');
+  const events = entry.events || [];
+  eventsList.innerHTML = events.slice(-15).map(e =>
+    `<div class="event-item">${e}</div>`
+  ).join('');
+  if (events.length === 0) eventsList.innerHTML = '<div class="event-item" style="color:#484f58">No events recorded</div>';
+
+  // Resources
+  const res = entry.resources || {};
+  const resIcons = { food: '🌾', wood: '🪵', stone: '🪨', iron: '⛏', fish: '🐟', weapons: '⚔️' };
+  const resHtml = Object.entries(res).map(([k, v]) =>
+    `<span class="resource-item">${resIcons[k] || '•'} <span class="value">${Math.round(v)}</span> ${k}</span>`
+  ).join('');
+  const resBar = `<div class="resource-bar">${resHtml || '<span class="resource-item" style="color:#484f58">No resources tracked</span>'}</div>`;
+
+  // Discoveries
+  const discList = document.getElementById('discoveries-list');
+  const discoveries = entry.discoveries || [];
+  const hypotheses = entry.hypotheses || [];
+
+  discList.innerHTML = resBar;
+
+  if (discoveries.length > 0) {
+    discList.innerHTML += discoveries.map(d =>
+      `<div class="discovery-item"><div class="title">✦ ${d.title}</div><div class="desc">${d.description || ''} (epoch ${d.epochDiscovered})</div></div>`
+    ).join('');
+  }
+
+  if (hypotheses.length > 0) {
+    discList.innerHTML += '<div style="margin-top:8px;font-size:12px;color:#8b949e">Active Research:</div>';
+    discList.innerHTML += hypotheses.map(h =>
+      `<div class="hypothesis-item"><div class="title">○ ${h.title}</div><div class="desc">Status: ${h.status} · Difficulty: ${h.difficulty}</div></div>`
+    ).join('');
+  }
+
+  if (discoveries.length === 0 && hypotheses.length === 0) {
+    discList.innerHTML += '<div style="color:#484f58;font-size:13px;margin-top:8px">No discoveries or active research</div>';
+  }
+
+  // Causal graph
+  renderCausalGraph(currentSaveId, entry.epoch);
+}
+
+async function renderCausalGraph(saveId, epoch) {
+  const container = document.getElementById('causal-graph');
+  container.innerHTML = '<svg id="causal-svg"><text x="10" y="20" fill="#484f58" font-size="12">Loading...</text></svg>';
+
+  try {
+    const res = await fetch(`/api/saves/${encodeURIComponent(saveId)}/causal-graph`);
+    const data = await res.json();
+    const nodes = (data.nodes || []).filter(n => n.epoch <= epoch);
+    const edges = (data.edges || []).filter(e => {
+      const fromNode = nodes.find(n => n.id === e.from);
+      const toNode = nodes.find(n => n.id === e.to);
+      return fromNode && toNode;
+    });
+
+    // Focus on nodes near the current epoch
+    const nearbyIds = new Set();
+    nodes.filter(n => Math.abs(n.epoch - epoch) <= 3).forEach(n => nearbyIds.add(n.id));
+    const expandedIds = new Set(nearbyIds);
+    edges.filter(e => nearbyIds.has(e.from) || nearbyIds.has(e.to)).forEach(e => {
+      expandedIds.add(e.from);
+      expandedIds.add(e.to);
+    });
+    const filteredNodes = nodes.filter(n => expandedIds.has(n.id)).slice(0, 20);
+    const filteredEdges = edges.filter(e => expandedIds.has(e.from) && expandedIds.has(e.to)).slice(0, 40);
+
+    if (filteredNodes.length === 0) {
+      container.innerHTML = '<svg id="causal-svg"><text x="10" y="20" fill="#484f58" font-size="12">No causal data for this epoch</text></svg>';
+      return;
+    }
+
+    const svg = document.getElementById('causal-svg');
+    const w = svg.parentElement.clientWidth || 400;
+    const h = 200;
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = '';
+
+    // Layout: circular around epoch center
+    const centerX = w / 2;
+    const centerY = h / 3;
+    const radius = Math.min(w, h) / 3;
+    const nodePositions = new Map();
+
+    filteredNodes.forEach((n, i) => {
+      const angle = (i / filteredNodes.length) * 2 * Math.PI - Math.PI / 2;
+      const r = n.type === 'epoch' ? radius * 0.3 : radius * (0.5 + (i % 3) * 0.15);
+      nodePositions.set(n.id, {
+        x: centerX + Math.cos(angle) * r,
+        y: centerY + Math.sin(angle) * r + 20,
+      });
+    });
+
+    // Draw edges
+    filteredEdges.forEach(e => {
+      const from = nodePositions.get(e.from);
+      const to = nodePositions.get(e.to);
+      if (!from || !to) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', String(from.x));
+      line.setAttribute('y1', String(from.y));
+      line.setAttribute('x2', String(to.x));
+      line.setAttribute('y2', String(to.y));
+      line.setAttribute('stroke', e.type === 'enables' ? '#238636' : e.type === 'discovers' ? '#58a6ff' : '#d29922');
+      line.setAttribute('stroke-width', '1.5');
+      line.setAttribute('opacity', '0.5');
+      svg.appendChild(line);
+    });
+
+    // Draw nodes
+    filteredNodes.forEach(n => {
+      const pos = nodePositions.get(n.id);
+      if (!pos) return;
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+      const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      titleEl.textContent = `${n.title} (Epoch ${n.epoch})`;
+      g.appendChild(titleEl);
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', String(pos.x));
+      circle.setAttribute('cy', String(pos.y));
+      circle.setAttribute('r', n.type === 'epoch' ? '8' : '6');
+      circle.setAttribute('fill', n.type === 'discovery' ? '#238636' : n.type === 'hypothesis' ? '#d29922' : '#58a6ff');
+      circle.setAttribute('stroke', '#30363d');
+      circle.setAttribute('stroke-width', '1');
+      g.appendChild(circle);
+
+      // Label for non-epoch nodes
+      if (n.type !== 'epoch') {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', String(pos.x + 10));
+        text.setAttribute('y', String(pos.y + 4));
+        text.setAttribute('fill', '#8b949e');
+        text.setAttribute('font-size', '9');
+        text.textContent = n.title.length > 18 ? n.title.slice(0, 16) + '..' : n.title;
+        g.appendChild(text);
+      }
+
+      svg.appendChild(g);
+    });
+  } catch (e) {
+    container.innerHTML = `<svg id="causal-svg"><text x="10" y="20" fill="#ff7b72" font-size="12">Error loading graph</text></svg>`;
+  }
+}
+
+async function askWhy() {
+  const input = document.getElementById('query-input');
+  const question = input.value.trim();
+  if (!question || !currentSaveId) return;
+
+  const resultDiv = document.getElementById('query-result');
+  resultDiv.className = 'query-result visible';
+  resultDiv.textContent = 'Consulting the oracle...';
+  document.getElementById('btn-why').disabled = true;
+
+  try {
+    const res = await fetch('/api/query/why', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, saveId: currentSaveId }),
+    });
+    const data = await res.json();
+    if (data.needsClarification) {
+      resultDiv.innerHTML = `<span style="color:#d29922">💬 Oracle: ${data.clarificationQuestion || data.answer}</span>`;
+    } else {
+      resultDiv.innerHTML = `<span style="color:#7ee787">🗣️ Oracle: ${data.answer}</span>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<span style="color:#ff7b72">⚠️ Error: ${e.message}</span>`;
+  } finally {
+    document.getElementById('btn-why').disabled = false;
+  }
+}
+
+async function askWhatIf() {
+  const input = document.getElementById('query-input');
+  const question = input.value.trim();
+  if (!question || !currentSaveId) return;
+
+  const resultDiv = document.getElementById('query-result');
+  resultDiv.className = 'query-result visible';
+  resultDiv.textContent = 'Projecting alternate timeline...';
+  document.getElementById('btn-whatif').disabled = true;
+
+  const epoch = currentTimeline.length > 0 ? currentTimeline[Math.floor(currentTimeline.length / 2)].epoch : 1;
+
+  try {
+    const res = await fetch('/api/query/what-if', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, saveId: currentSaveId, epoch }),
+    });
+    const data = await res.json();
+    if (data.needsClarification) {
+      resultDiv.innerHTML = `<span style="color:#d29922">💬 Oracle: ${data.clarificationQuestion || ''}</span>`;
+    } else if (data.narration) {
+      resultDiv.innerHTML = `<div><span style="color:#d29922">🌀 Alternate Timeline</span></div><div style="margin-top:4px">${data.narration}</div>`;
+      if (data.projection) {
+        const epochs = data.projection.projectedEpochs || [];
+        if (epochs.length > 0) {
+          const epochList = epochs.map(e =>
+            `<span class="tag tag-hyp">E${e.epoch}</span> ${e.whatChangesVsOriginal?.slice(0, 60) || ''}`
+          ).join('<br>');
+          resultDiv.innerHTML += `<div style="margin-top:6px;font-size:12px;color:#8b949e">${epochList}</div>`;
+        }
+      }
+    } else {
+      resultDiv.innerHTML = `<span style="color:#ff7b72">${data.error || 'Could not generate alternate timeline.'}</span>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<span style="color:#ff7b72">⚠️ Error: ${e.message}</span>`;
+  } finally {
+    document.getElementById('btn-whatif').disabled = false;
+  }
+}
+
+loadSaves();
+</script>
+</body>
+</html>

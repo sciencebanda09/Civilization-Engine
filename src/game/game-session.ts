@@ -81,15 +81,34 @@ export function createGameSession(
 
   const fColors = ['\x1b[36m', '\x1b[35m', '\x1b[33m', '\x1b[32m'];
   const fNames = ['Innovators', 'Scholars', 'Explorers', 'Builders'];
-  for (let i = 0; i < allAgents.length; i++) {
-    const agent = allAgents[i]!;
-    if (!factionManager.getAgentFaction(agent.id)) {
+
+  if (allAgents.length > 10) {
+    const foundingAgentCount = Math.min(4, allAgents.length);
+    for (let i = 0; i < foundingAgentCount; i++) {
+      const agent = allAgents[i]!;
       factionManager.createFaction(
-        `${fNames[i % fNames.length]!} Clan`,
+        `${fNames[i % fNames.length]!}`,
         fColors[i % fColors.length]!,
         agent, 0,
         agent.personalityTraits ?? ['curiosity'],
       );
+    }
+    for (let i = foundingAgentCount; i < allAgents.length; i++) {
+      const f = factionManager.getAllFactions();
+      const targetFaction = f[i % f.length]!;
+      factionManager.addMember(targetFaction.id, allAgents[i]!.id);
+    }
+  } else {
+    for (let i = 0; i < allAgents.length; i++) {
+      const agent = allAgents[i]!;
+      if (!factionManager.getAgentFaction(agent.id)) {
+        factionManager.createFaction(
+          `${fNames[i % fNames.length]!} Clan`,
+          fColors[i % fColors.length]!,
+          agent, 0,
+          agent.personalityTraits ?? ['curiosity'],
+        );
+      }
     }
   }
   const allFactions = factionManager.getAllFactions();

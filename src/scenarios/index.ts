@@ -151,3 +151,94 @@ export function listScenarios(): string {
     `  ${i + 1}. ${s.name} (${s.difficulty})${s.difficulty === 'easy' ? ' ★' : s.difficulty === 'hard' ? ' 💀' : s.difficulty === 'extreme' ? ' ☠️' : ''}\n     ${s.description}`
   ).join('\n');
 }
+
+const AGENT_NAMES = [
+  'Aldric', 'Bryn', 'Cassia', 'Doran', 'Eira', 'Finnian', 'Greta', 'Hale',
+  'Iris', 'Joric', 'Kara', 'Leif', 'Maren', 'Niall', 'Oona', 'Pell',
+  'Runa', 'Sigrid', 'Tova', 'Ulf', 'Veda', 'Wynn', 'Xara', 'Yorik',
+  'Zelda', 'Aric', 'Bera', 'Cedric', 'Dagny', 'Elara', 'Fenris', 'Gunnar',
+  'Hilda', 'Ivar', 'Jorunn', 'Kellan', 'Lira', 'Magnus', 'Nora', 'Orin',
+  'Pyra', 'Quinn', 'Rig', 'Soren', 'Thyra', 'Una', 'Vidar', 'Willow',
+  'Yrsa', 'Zane', 'Asta', 'Bjorn', 'Corin', 'Disa', 'Egil', 'Freya',
+  'Gerd', 'Hakon', 'Ingrid',
+];
+
+const ALL_ARCHETYPES: Array<{ name: string; expertise: string[]; expertiseDesc: string; goals: string[] }> = [
+  { name: 'inventor', expertise: ['toolmaking', 'stone_working', 'engineering'], expertiseDesc: 'Creator of new tools and devices', goals: ['Invent useful devices', 'Improve technology'] },
+  { name: 'scholar', expertise: ['botany', 'medicine', 'astronomy'], expertiseDesc: 'Student of nature and the cosmos', goals: ['Document knowledge', 'Understand natural phenomena'] },
+  { name: 'explorer', expertise: ['navigation', 'mapping', 'survival'], expertiseDesc: 'Fearless traveler and scout', goals: ['Map unknown territory', 'Discover new resources'] },
+  { name: 'leader', expertise: ['warfare', 'tactics', 'diplomacy'], expertiseDesc: 'Natural leader and strategist', goals: ['Unite the people', 'Plan for the future'] },
+  { name: 'crafter', expertise: ['pottery', 'weaving', 'woodworking'], expertiseDesc: 'Skilled artisan and maker', goals: ['Create beautiful objects', 'Master new materials'] },
+  { name: 'builder', expertise: ['construction', 'stone_working', 'architecture'], expertiseDesc: 'Master of structures and infrastructure', goals: ['Build lasting monuments', 'Design efficient shelters'] },
+  { name: 'merchant', expertise: ['trade', 'negotiation', 'navigation'], expertiseDesc: 'Traveling trader and negotiator', goals: ['Establish trade routes', 'Accumulate wealth'] },
+  { name: 'warrior', expertise: ['combat', 'tactics', 'weapon_crafting'], expertiseDesc: 'Fierce defender and fighter', goals: ['Protect the settlement', 'Train others in combat'] },
+  { name: 'diplomat', expertise: ['negotiation', 'languages', 'diplomacy'], expertiseDesc: 'Skilled negotiator and bridge-builder', goals: ['Form alliances', 'Resolve conflicts peacefully'] },
+  { name: 'scientist', expertise: ['alchemy', 'astronomy', 'mathematics'], expertiseDesc: 'Systematic investigator of nature', goals: ['Conduct experiments', 'Discover natural laws'] },
+  { name: 'philosopher', expertise: ['ethics', 'logic', 'writing'], expertiseDesc: 'Deep thinker and moral guide', goals: ['Develop a code of ethics', 'Record oral traditions'] },
+  { name: 'artist', expertise: ['painting', 'sculpture', 'music'], expertiseDesc: 'Creative soul and cultural keeper', goals: ['Create lasting art', 'Inspire the people'] },
+  { name: 'farmer', expertise: ['agriculture', 'botany', 'irrigation'], expertiseDesc: 'Tiller of soil and grower of food', goals: ['Improve crop yields', 'Develop sustainable farming'] },
+  { name: 'survivalist', expertise: ['hunting', 'tracking', 'foraging'], expertiseDesc: 'Wilderness expert and provider', goals: ['Secure food sources', 'Survive harsh conditions'] },
+];
+
+const PERSONALITY_TRAIT_POOL = [
+  'curious', 'cautious', 'bold', 'meticulous', 'creative', 'analytical',
+  'patient', 'ambitious', 'stoic', 'resourceful', 'adventurous', 'determined',
+  'observant', 'shrewd', 'protective', 'suspicious', 'wise', 'fair',
+  'practical', 'inspiring', 'secretive', 'loyal', 'strategic', 'cunning',
+  'ingenious', 'enduring', 'stoic', 'gregarious', 'diligent', 'reflective',
+  'friendly', 'perceptive', 'brave', 'methodical', 'decisive', 'charismatic',
+];
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!;
+}
+
+function pickN<T>(arr: T[], n: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(n, arr.length));
+}
+
+let nameIndex = 0;
+
+export function generateLargeScenario(agentCount: number): Scenario {
+  const agents = [];
+  nameIndex = 0;
+  for (let i = 0; i < agentCount; i++) {
+    const arch = ALL_ARCHETYPES[i % ALL_ARCHETYPES.length]!;
+    const name = AGENT_NAMES[nameIndex % AGENT_NAMES.length]!;
+    nameIndex++;
+    const traits = pickN(PERSONALITY_TRAIT_POOL, 2);
+    const expertise = pickN(arch.expertise, 1 + Math.floor(Math.random() * 2));
+    agents.push({
+      name,
+      archetype: arch.name as Agent['archetype'],
+      personalityTraits: traits,
+      expertise,
+      expertiseDescription: arch.expertiseDesc,
+      goals: pickN(arch.goals, 1 + Math.floor(Math.random())),
+      relationshipSummary: `Known as a ${pickRandom(['capable', 'promising', 'reliable', 'curious', 'steadfast'])} ${arch.name}`,
+    });
+  }
+
+  const popNote = agentCount <= 10 ? `Small group of ${agentCount * 10} people`
+    : agentCount <= 30 ? `Growing settlement of ${agentCount * 10} people`
+    : agentCount <= 50 ? `Thriving town of ${agentCount * 10} people`
+    : `Sprawling population of ${agentCount * 10} people`;
+
+  return {
+    id: 'large_civilization',
+    name: `Large Civilization (${agentCount} agents)`,
+    description: `A large-scale simulation with ${agentCount} agents. New discoveries emerge from the chaos of many minds working in parallel.`,
+    difficulty: 'normal',
+    worldState: {
+      era: 'Stone Age',
+      epoch: 0,
+      resources: { wood: 300, stone: 200, food: 500 },
+      flags: {},
+      discoveries: [],
+      populationNote: popNote,
+      enabledDomains: ['basic_toolmaking', 'foraging', 'shelter_building'],
+    },
+    agents,
+  };
+}

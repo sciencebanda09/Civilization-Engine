@@ -42,6 +42,7 @@ export class HypothesisEngine {
       }>(prompt, {
         temperature: 0.7,
         maxTokens: 500,
+        tier: 'big',
       });
 
       const hypothesis: Hypothesis = {

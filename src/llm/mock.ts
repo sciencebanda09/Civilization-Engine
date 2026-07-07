@@ -16,15 +16,18 @@ export class MockLLMProvider extends BaseLLMProvider {
   async generate(prompt: string, _options?: LLMOptions): Promise<string> {
     for (const [substring, response] of this.responseMap) {
       if (prompt.includes(substring)) {
-        if (substring === 'team-formation reasoner') {
-          const idMatch = prompt.match(/(agent_\d+)/);
-          const parsed = JSON.parse(response) as Record<string, unknown>;
-          if (idMatch) {
-            parsed['selected_agent_ids'] = [idMatch[1]!];
-          }
-          return JSON.stringify(parsed);
+        const parsed = JSON.parse(response) as Record<string, unknown>;
+        const allIds = prompt.match(/agent_\d+/g);
+        if (substring === 'team-formation reasoner' && allIds && allIds.length > 0) {
+          parsed['selected_agent_ids'] = [allIds[0]!];
         }
-        return response;
+        if (substring === 'impartial world simulator' && allIds && allIds.length > 0) {
+          const notes = parsed['agent_memory_notes'] as Array<Record<string, unknown>> | undefined;
+          if (notes && notes.length > 0) {
+            notes[0]!['agent_id'] = allIds[0]!;
+          }
+        }
+        return JSON.stringify(parsed);
       }
     }
     return this.defaultResponse;

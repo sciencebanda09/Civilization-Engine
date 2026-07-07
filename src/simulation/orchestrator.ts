@@ -1,7 +1,7 @@
 import type { Agent, WorldState, EpochEvent } from '../types/index.js';
 import type { AgentTeam, Hypothesis, TeamFormationResult } from '../types/experiment.js';
 import type { Config } from '../config.js';
-import type { LLMProvider } from '../llm/provider.js';
+import type { LLMProvider, LLMOptions } from '../llm/provider.js';
 import { AgentManager } from '../agents/agent-manager.js';
 import { PromptManager } from '../prompts/prompt-manager.js';
 import { NanoTriage } from './nano-triage.js';
@@ -20,6 +20,19 @@ import { CatastropheEngine, DEFAULT_CATASTROPHE_CONFIG, CatastropheEvent } from 
 import { RelationshipManager, DEFAULT_RELATIONSHIP_CONFIG } from './relationships.js';
 import { EraManager, DEFAULT_ERAS } from './eras.js';
 
+class CountingLLMProvider implements LLMProvider {
+  public count = 0;
+  constructor(private inner: LLMProvider) {}
+  async generate(prompt: string, options?: LLMOptions): Promise<string> {
+    this.count++;
+    return this.inner.generate(prompt, options);
+  }
+  async generateJSON<T>(prompt: string, options?: LLMOptions): Promise<T> {
+    this.count++;
+    return this.inner.generateJSON<T>(prompt, options);
+  }
+}
+
 export class Orchestrator {
   private config: Config;
   private agents: AgentManager;
@@ -33,6 +46,7 @@ export class Orchestrator {
   private timeline: TimelineService;
   private epochScheduler: EpochScheduler;
   private llm: LLMProvider;
+  private countedLlm: CountingLLMProvider;
   private eventBus: EventBus;
   private eventHistory: EventHistory;
   private historyTracker: HistoryTracker;
@@ -57,17 +71,18 @@ export class Orchestrator {
     initialWorldState: WorldState,
   ) {
     this.config = config;
-    this.llm = llm;
+    this.countedLlm = new CountingLLMProvider(llm);
+    this.llm = this.countedLlm;
     this.agents = agentManager;
     this.worldState = initialWorldState;
     this.prompts = new PromptManager();
-    this.triage = new NanoTriage(llm, this.prompts);
-    this.hypotheses = new HypothesisEngine(llm, this.prompts);
-    this.teamFormation = new TeamFormation(llm, this.prompts);
-    this.debate = new DebateSystem(llm, this.prompts);
-    this.debateSynthesis = new DebateSynthesis(llm, this.prompts);
-    this.worldSim = new WorldSimulator(llm, this.prompts);
-    this.timeline = new TimelineService(llm, this.prompts);
+    this.triage = new NanoTriage(this.llm, this.prompts);
+    this.hypotheses = new HypothesisEngine(this.llm, this.prompts);
+    this.teamFormation = new TeamFormation(this.llm, this.prompts);
+    this.debate = new DebateSystem(this.llm, this.prompts);
+    this.debateSynthesis = new DebateSynthesis(this.llm, this.prompts);
+    this.worldSim = new WorldSimulator(this.llm, this.prompts);
+    this.timeline = new TimelineService(this.llm, this.prompts);
     this.epochScheduler = new EpochScheduler();
     this.eventBus = new EventBus();
     this.eventHistory = new EventHistory();
@@ -190,12 +205,21 @@ export class Orchestrator {
       }
     }
 
+    this.countedLlm.count = 0;
+
     const newHypothesisIds = this.hypotheses
       .getHypothesesByStatus('proposed')
       .map((h) => h.id);
 
+    const maxTeams = this.config.simulation.maxActiveTeamsPerEpoch;
+    let teamsFormedThisEpoch = 0;
     for (const hypId of newHypothesisIds) {
-      await this.processHypothesis(hypId);
+      if (teamsFormedThisEpoch >= maxTeams) {
+        logger.info(`[Cap] Max active teams (${maxTeams}) reached this epoch, deferring hypothesis ${hypId}`);
+        break;
+      }
+      const formed = await this.processHypothesis(hypId);
+      if (formed) teamsFormedThisEpoch++;
     }
 
     const resolvedTeamIds: string[] = [];
@@ -280,6 +304,7 @@ export class Orchestrator {
           openHypotheses: this.hypotheses.getOpenHypotheses().length,
           activeTeams: this.activeTeams.size,
           discoveries: this.worldState.discoveries.length,
+          llmCalls: this.countedLlm.count,
         };
         logger.info(`[Health] Epoch ${this.currentEpoch}: ${JSON.stringify(stats)}`);
       }
@@ -334,12 +359,14 @@ export class Orchestrator {
     logger.info(`Team ${team.id} formed for "${hypothesis.title}"`);
   }
 
-  private async processHypothesis(hypId: string): Promise<void> {
+  private async processHypothesis(hypId: string): Promise<boolean> {
     const hypothesis = this.hypotheses.getHypothesis(hypId);
-    if (!hypothesis || hypothesis.status !== 'proposed') return;
+    if (!hypothesis || hypothesis.status !== 'proposed') return false;
 
     this.hypotheses.setStatus(hypId, 'team_forming');
+    const prevSize = this.activeTeams.size;
     await this.formTeamForHypothesis(hypothesis);
+    return this.activeTeams.size > prevSize;
   }
 
   private async processTeam(team: AgentTeam): Promise<boolean> {
@@ -441,6 +468,7 @@ export class Orchestrator {
       population: this.populationEstimate,
       era: this.worldState.era,
       resources: { ...this.worldState.resources },
+      llmCalls: this.countedLlm.count,
     };
   }
 

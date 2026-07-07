@@ -45,6 +45,7 @@ export class WorldSimulator {
       }>(prompt, {
         temperature: 0.5,
         maxTokens: 600,
+        tier: 'big',
       });
 
       const outcome: ExperimentOutcome = {

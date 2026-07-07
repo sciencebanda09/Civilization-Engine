@@ -29,6 +29,7 @@ export class CausalOracle {
       const result = await this.llm.generate(prompt, {
         temperature: 0.5,
         maxTokens: 500,
+        tier: 'big',
       });
 
       const cleaned = result.trim();

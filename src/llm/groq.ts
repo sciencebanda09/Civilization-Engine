@@ -19,12 +19,16 @@ export class GroqProvider extends BaseLLMProvider {
   private baseUrl: string;
   private defaultModel: string;
   private keyIndex = 0;
+  private smallModel: string;
+  private bigModel: string;
 
-  constructor(apiKeys: string | string[], defaultModel?: string, baseUrl?: string) {
+  constructor(apiKeys: string | string[], smallModel?: string, bigModel?: string, baseUrl?: string) {
     super();
     this.apiKeys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
     this.baseUrl = baseUrl ?? 'https://api.groq.com/openai/v1';
-    this.defaultModel = defaultModel ?? process.env['GROQ_MODEL'] ?? 'llama-3.3-70b-versatile';
+    this.smallModel = smallModel ?? process.env['GROQ_SMALL_MODEL'] ?? process.env['GROQ_MODEL'] ?? 'llama-3.1-8b-instant';
+    this.bigModel = bigModel ?? process.env['GROQ_BIG_MODEL'] ?? process.env['GROQ_MODEL'] ?? 'llama-3.3-70b-versatile';
+    this.defaultModel = this.bigModel;
   }
 
   private getNextKey(): string {
@@ -34,7 +38,9 @@ export class GroqProvider extends BaseLLMProvider {
   }
 
   async generate(prompt: string, options?: LLMOptions): Promise<string> {
-    const model = options?.model ?? this.defaultModel;
+    const model = options?.tier === 'small' ? this.smallModel
+      : options?.tier === 'big' ? this.bigModel
+      : options?.model ?? this.defaultModel;
     const messages: GroqMessage[] = [];
 
     if (options?.systemInstruction) {

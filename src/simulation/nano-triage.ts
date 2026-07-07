@@ -55,6 +55,7 @@ export class NanoTriage {
       const result = await this.llm.generateJSON<TriageResult>(prompt, {
         temperature: 0.3,
         maxTokens: 200,
+        tier: 'small',
       });
       logger.debug(
         `Nano triage for ${agent.name}: wantsToAct=${result.wantsToAct}, action=${result.actionType}, urgency=${result.urgency}`,
